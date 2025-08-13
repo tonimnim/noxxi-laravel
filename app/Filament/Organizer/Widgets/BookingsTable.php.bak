@@ -1,0 +1,122 @@
+<?php
+
+namespace App\Filament\Organizer\Widgets;
+
+use App\Models\Booking;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Filament\Widgets\TableWidget as BaseWidget;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\BadgeColumn;
+use Illuminate\Support\HtmlString;
+
+class BookingsTable extends BaseWidget
+{
+    protected static ?int $sort = 2;
+    protected int | string | array $columnSpan = 'full';
+    
+    public function table(Table $table): Table
+    {
+        $organizerId = Auth::user()->organizer?->id;
+        
+        return $table
+            ->query(
+                $organizerId 
+                    ? Booking::query()
+                        ->whereHas('event', function (Builder $query) use ($organizerId) {
+                            $query->where('organizer_id', $organizerId);
+                        })
+                        ->with(['event', 'event.category', 'user'])
+                        ->latest()
+                        ->limit(5) // Show only 5 recent bookings on dashboard
+                    : Booking::query()->whereRaw('1 = 0')
+            )
+            ->columns([
+                TextColumn::make('booking_reference')
+                    ->label('Booking')
+                    ->weight('bold')
+                    ->searchable()
+                    ->sortable(),
+                    
+                TextColumn::make('customer_info')
+                    ->label('Customer')
+                    ->formatStateUsing(function ($state, $record) {
+                        $name = $record->user?->name ?: $record->customer_name;
+                        $email = $record->user?->email ?: $record->customer_email;
+                        return new HtmlString("
+                            <div>
+                                <div class='font-medium'>{$name}</div>
+                                <div class='text-xs text-gray-500'>{$email}</div>
+                            </div>
+                        ");
+                    })
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function ($query) use ($search) {
+                            $query->whereHas('user', function ($query) use ($search) {
+                                $query->where('name', 'like', "%{$search}%")
+                                      ->orWhere('email', 'like', "%{$search}%");
+                            })
+                            ->orWhere('customer_name', 'like', "%{$search}%")
+                            ->orWhere('customer_email', 'like', "%{$search}%");
+                        });
+                    }),
+                    
+                TextColumn::make('event.title')
+                    ->label('Listing')
+                    ->limit(40)
+                    ->tooltip(fn ($record) => $record->event?->title),
+                    
+                TextColumn::make('event.category.name')
+                    ->label('Vertical')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ?: 'General')
+                    ->color(fn ($state) => match(strtolower($state ?? '')) {
+                        'events' => 'purple',
+                        'sports' => 'warning',
+                        'wellness & spa' => 'success',
+                        'travel' => 'info',
+                        'music & arts' => 'danger',
+                        default => 'gray',
+                    }),
+                    
+                TextColumn::make('quantity')
+                    ->label('Qty')
+                    ->alignCenter(),
+                    
+                TextColumn::make('total_amount')
+                    ->label('Total')
+                    ->formatStateUsing(fn ($state) => '$' . number_format($state, 2))
+                    ->alignEnd()
+                    ->weight('bold'),
+                    
+                BadgeColumn::make('status')
+                    ->label('Status')
+                    ->formatStateUsing(fn ($state) => ucfirst($state))
+                    ->color(fn ($state) => match(strtolower($state ?? '')) {
+                        'confirmed' => 'success',
+                        'pending' => 'warning',
+                        'cancelled', 'expired' => 'danger',
+                        'refunded' => 'info',
+                        default => 'gray',
+                    }),
+                    
+                TextColumn::make('created_at')
+                    ->label('Date')
+                    ->date('Y-m-d')
+                    ->sortable(),
+            ])
+            ->actions([
+                Tables\Actions\Action::make('more')
+                    ->icon('heroicon-m-ellipsis-horizontal')
+                    ->iconButton()
+                    ->color('gray'),
+            ])
+            ->paginated(false)
+            ->heading('Recent Bookings')
+            ->description('Latest booking activity')
+            ->striped()
+            ->poll('60s');
+    }
+}
