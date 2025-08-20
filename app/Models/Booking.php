@@ -75,7 +75,7 @@ class Booking extends Model
     {
         static::creating(function ($booking) {
             if (empty($booking->booking_reference)) {
-                $booking->booking_reference = 'BK' . strtoupper(Str::random(8));
+                $booking->booking_reference = 'BK'.strtoupper(Str::random(8));
             }
         });
     }
@@ -89,7 +89,7 @@ class Booking extends Model
     }
 
     /**
-     * Get the event for the booking.
+     * Get the event that the booking is for.
      */
     public function event(): BelongsTo
     {
@@ -110,6 +110,22 @@ class Booking extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * Scope for paid bookings.
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('payment_status', 'paid');
+    }
+
+    /**
+     * Check if booking has checked-in tickets.
+     */
+    public function hasCheckedInTickets(): bool
+    {
+        return $this->tickets()->where('checked_in', true)->exists();
     }
 
     /**
@@ -174,7 +190,7 @@ class Booking extends Model
     /**
      * Cancel the booking.
      */
-    public function cancel(string $reason = null): void
+    public function cancel(?string $reason = null): void
     {
         $this->update([
             'status' => 'cancelled',

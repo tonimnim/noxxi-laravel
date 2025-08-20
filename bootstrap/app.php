@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Add SecurityHeaders middleware to all responses
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         $middleware->alias([
             'organizer' => \App\Http\Middleware\EnsureUserIsOrganizer::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,

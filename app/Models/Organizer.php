@@ -35,7 +35,7 @@ class Organizer extends Model
     protected $fillable = [
         'user_id',
         'business_name',
-        'business_email',
+        'business_type',
         'business_description',
         'business_logo_url',
         'business_country',
@@ -57,6 +57,9 @@ class Organizer extends Model
         'auto_approve_events',
         'is_active',
         'is_featured',
+        'is_verified',
+        'verification_status',
+        'verified_at',
         'metadata',
         'approved_at',
         'approved_by',
@@ -88,8 +91,10 @@ class Organizer extends Model
             'commission_rate' => 'decimal:2',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
+            'is_verified' => 'boolean',
             'auto_approve_events' => 'boolean',
             'approved_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -100,7 +105,7 @@ class Organizer extends Model
     {
         static::creating(function ($organizer) {
             if (empty($organizer->api_key)) {
-                $organizer->api_key = 'noxxi_' . Str::random(32);
+                $organizer->api_key = 'noxxi_'.Str::random(32);
             }
             if (empty($organizer->webhook_secret)) {
                 $organizer->webhook_secret = Str::random(40);
@@ -193,7 +198,7 @@ class Organizer extends Model
      */
     public function hasPaymentMethod(string $provider): bool
     {
-        if (!is_array($this->payment_methods)) {
+        if (! is_array($this->payment_methods)) {
             return false;
         }
 
@@ -211,7 +216,7 @@ class Organizer extends Model
      */
     public function getPrimaryPaymentMethod(): ?array
     {
-        if (!is_array($this->payment_methods)) {
+        if (! is_array($this->payment_methods)) {
             return null;
         }
 
@@ -238,7 +243,7 @@ class Organizer extends Model
     {
         $revenue = $this->total_revenue ?? [];
         $revenue[$currency] = ($revenue[$currency] ?? 0) + $amount;
-        
+
         $this->update([
             'total_revenue' => $revenue,
             'total_tickets_sold' => $this->total_tickets_sold + 1,
@@ -250,8 +255,9 @@ class Organizer extends Model
      */
     public function regenerateApiKey(): string
     {
-        $newKey = 'noxxi_' . Str::random(32);
+        $newKey = 'noxxi_'.Str::random(32);
         $this->update(['api_key' => $newKey]);
+
         return $newKey;
     }
 
@@ -262,6 +268,7 @@ class Organizer extends Model
     {
         $newSecret = Str::random(40);
         $this->update(['webhook_secret' => $newSecret]);
+
         return $newSecret;
     }
 }

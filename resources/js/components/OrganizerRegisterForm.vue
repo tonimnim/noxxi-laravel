@@ -1,89 +1,23 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex">
-    <!-- Left Panel - Branding -->
-    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 relative overflow-hidden">
-      <div class="absolute inset-0 bg-black/10"></div>
-      <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-      
-      <!-- Decorative elements -->
-      <div class="absolute top-20 left-20 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-      <div class="absolute bottom-40 right-20 w-48 h-48 bg-white/5 rounded-full blur-2xl"></div>
-      
-      <div class="relative z-10 flex flex-col justify-between p-12 text-white w-full">
-        <div>
-          <div class="flex items-center space-x-3 mb-8">
-            <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <h1 class="text-2xl font-bold">{{ appName }}</h1>
+  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-8">
+    <div class="w-full max-w-lg">
+      <!-- Logo -->
+      <div class="flex items-center justify-center mb-8">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
           </div>
-        </div>
-        
-        <div class="space-y-6">
-          <h2 class="text-4xl font-bold leading-tight">
-            Become an Event Organizer
-          </h2>
-          <p class="text-xl text-white/80 leading-relaxed">
-            Start creating amazing events and reach thousands of attendees with our powerful platform.
-          </p>
-          
-          <div class="space-y-4">
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                </svg>
-              </div>
-              <span class="text-white/90">Simple event creation and management</span>
-            </div>
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                </svg>
-              </div>
-              <span class="text-white/90">Secure payment processing</span>
-            </div>
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                </svg>
-              </div>
-              <span class="text-white/90">Real-time analytics and insights</span>
-            </div>
-          </div>
+          <h1 class="text-2xl font-bold text-gray-900">{{ appName }}</h1>
         </div>
       </div>
-    </div>
-
-    <!-- Right Panel - Register Form -->
-    <div class="flex-1 flex items-center justify-center p-8">
-      <div class="w-full max-w-md">
-        <!-- Mobile Logo -->
-        <div class="lg:hidden flex items-center justify-center mb-8">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <h1 class="text-2xl font-bold text-gray-900">{{ appName }}</h1>
-          </div>
-        </div>
 
         <div class="text-center mb-8">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">Organizer Registration</h2>
-          <p class="text-gray-600">Create your organizer account to start hosting events</p>
+          <p class="text-gray-600">Start hosting events across Africa</p>
         </div>
 
-        <form @submit.prevent="handleRegister" class="space-y-5">
-          <!-- Personal Information Section -->
-          <div class="pb-4 border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Personal Information</h3>
-          </div>
+        <form @submit.prevent="handleRegister" class="space-y-6">
 
           <!-- Full Name Field -->
           <div class="space-y-2">
@@ -157,10 +91,7 @@
             </div>
           </div>
 
-          <!-- Business Information Section -->
-          <div class="pt-4 pb-4 border-t border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Business Information</h3>
-          </div>
+          <!-- Business Information -->
 
           <!-- Business Name Field -->
           <div class="space-y-2">
@@ -184,32 +115,8 @@
             </div>
           </div>
 
-          <!-- Business Email Field -->
-          <div class="space-y-2">
-            <label for="business_email" class="block text-sm font-medium text-gray-700">
-              Business Email <span class="text-red-500">*</span>
-            </label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <input
-                id="business_email"
-                v-model="form.business_email"
-                type="email"
-                required
-                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                placeholder="contact@awesomeevents.com"
-              />
-            </div>
-          </div>
 
-          <!-- Password Section -->
-          <div class="pt-4 pb-4 border-t border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Security</h3>
-          </div>
+          <!-- Password Fields -->
 
           <!-- Password Field -->
           <div class="space-y-2">
@@ -323,12 +230,13 @@
             </div>
           </div>
         </form>
-      </div>
     </div>
   </div>
 </template>
 
 <script>
+import secureStorage from '../services/SecureStorage';
+
 export default {
   name: 'OrganizerRegisterForm',
   data() {
@@ -346,7 +254,6 @@ export default {
         
         // Business Information
         business_name: '',
-        business_email: '',
         
         // Security
         password: '',
@@ -398,6 +305,7 @@ export default {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           },
           body: JSON.stringify({
@@ -409,13 +317,13 @@ export default {
         const data = await response.json();
 
         if (response.ok) {
-          // Store token if using API authentication
+          // Store token using secure storage
           if (data.data && data.data.token) {
-            localStorage.setItem('auth_token', data.data.token);
+            secureStorage.setToken(data.data.token);
           }
           
-          // Redirect to organizer dashboard
-          window.location.href = '/organizer/dashboard';
+          // Redirect to email verification page
+          window.location.href = '/email/verify';
         } else {
           // Handle different types of errors
           if (data.errors) {

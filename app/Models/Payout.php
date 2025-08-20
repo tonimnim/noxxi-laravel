@@ -14,6 +14,14 @@ class Payout extends Model
 
     public $incrementing = false;
     protected $keyType = 'string';
+    
+    // Status constants
+    const STATUS_PENDING = 'pending';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_PROCESSING = 'processing';
+    const STATUS_PAID = 'paid';
+    const STATUS_FAILED = 'failed';
+    const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
         'organizer_id',

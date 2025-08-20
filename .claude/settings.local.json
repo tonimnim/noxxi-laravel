@@ -4,17 +4,9 @@
       "Bash(php artisan:*)",
       "Bash(composer:*)",
       "Bash(rm:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "mcp__laravel-boost__database-schema"
     ],
     "deny": []
-  }
-}
-{
-  "mcpServers": {
-    "laravel-boost": {
-      "command": "php",
-      "args": ["./artisan", "boost:mcp"],
-      "cwd": "C:/Users/Administrator/noxxi-nuxt/noxxi-laravel"
-    }
   }
 }

@@ -63,6 +63,8 @@
 </template>
 
 <script>
+import secureStorage from '../services/SecureStorage';
+
 export default {
     data() {
         return {
@@ -90,7 +92,7 @@ export default {
             try {
                 const res = await fetch('/api/auth/user', {
                     headers: { 
-                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                        ...secureStorage.getAuthHeader(),
                         'Accept': 'application/json'
                     }
                 });
@@ -135,7 +137,7 @@ export default {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                        ...secureStorage.getAuthHeader(),
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify({ code: this.verificationCode })
@@ -164,7 +166,7 @@ export default {
                 await fetch('/api/auth/resend-verification', {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                        ...secureStorage.getAuthHeader(),
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     }
                 });

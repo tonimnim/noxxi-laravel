@@ -1,14 +1,18 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\EventController;
-use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\EventCategoryController;
+use App\Http\Controllers\Api\EventSearchController;
+use App\Http\Controllers\Api\EventTrendingController;
+use App\Http\Controllers\Api\HomeController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RefundController;
+use App\Http\Controllers\Api\SystemHealthController;
 use App\Http\Controllers\Api\V1\OrganizerListingController;
 use App\Http\Controllers\Api\V1\TicketValidationController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,15 +26,21 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Public auth routes
+// Home page routes
+Route::get('/home/trending', [HomeController::class, 'trending']);
+
+// Public auth routes with rate limiting
 Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('register-organizer', [AuthController::class, 'registerOrganizer']);
-    Route::post('login', [AuthController::class, 'login']);
-    
-    // Password reset routes (public)
-    Route::post('password/request-reset', [AuthController::class, 'requestPasswordReset']);
-    Route::post('password/reset', [AuthController::class, 'resetPassword']);
+    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:auth');
+    Route::post('register-organizer', [AuthController::class, 'registerOrganizer'])->middleware('throttle:auth');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:auth');
+
+    // Password reset routes (public) with stricter rate limiting
+    Route::post('password/request-reset', [AuthController::class, 'requestPasswordReset'])->middleware('throttle:password-reset');
+    Route::post('password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
+
+    // Token refresh route (public) with rate limiting
+    Route::post('refresh', [AuthController::class, 'refreshToken'])->middleware('throttle:auth');
 });
 
 // Public event routes
@@ -38,28 +48,39 @@ Route::prefix('events')->group(function () {
     Route::get('/', [EventController::class, 'index']);
     Route::get('/upcoming', [EventController::class, 'upcoming']);
     Route::get('/featured', [EventController::class, 'featured']);
-    Route::get('/categories', [EventController::class, 'categories']);
-    Route::get('/search', [EventController::class, 'search']);
+    Route::get('/trending', [EventTrendingController::class, 'trending']);
+    Route::get('/categories', [EventCategoryController::class, 'index']);
+    Route::get('/categories/{slug}', [EventCategoryController::class, 'show']);
+    Route::get('/search', [EventSearchController::class, 'search']);
+    Route::get('/search-suggestions', [EventSearchController::class, 'suggestions']);
     Route::get('/{id}', [EventController::class, 'show']);
+    Route::get('/{id}/similar', [EventTrendingController::class, 'similar']);
+});
+
+// System health endpoints (public but rate-limited)
+Route::prefix('system')->middleware('throttle:60,1')->group(function () {
+    Route::get('/health', [SystemHealthController::class, 'health']);
+    Route::get('/metrics', [SystemHealthController::class, 'metrics']);
 });
 
 // Protected routes (require authentication)
 Route::middleware('auth:api')->group(function () {
-    // Auth routes
+    // Auth routes with rate limiting
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::get('user', [AuthController::class, 'me']); // Alias for Vue components
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('verify-email', [AuthController::class, 'verifyEmail']);
-        Route::post('resend-verification', [AuthController::class, 'resendVerification']);
+        Route::post('verify-email', [AuthController::class, 'verifyEmail'])->middleware('throttle:verification');
+        Route::post('resend-verification', [AuthController::class, 'resendVerification'])->middleware('throttle:verification');
     });
-    
+
     // User profile routes
     Route::prefix('user')->group(function () {
         Route::get('profile', [AuthController::class, 'me']);
-        // Future: update profile, change password, etc.
+        Route::put('profile', [AuthController::class, 'updateProfile']);
+        Route::post('change-password', [AuthController::class, 'changePassword']);
     });
-    
+
     // Booking routes
     Route::prefix('bookings')->group(function () {
         Route::get('/', [BookingController::class, 'index']);
@@ -68,7 +89,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/cancel', [BookingController::class, 'cancel']);
         Route::get('/{id}/tickets', [BookingController::class, 'tickets']);
     });
-    
+
     // Ticket routes
     Route::prefix('tickets')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\TicketController::class, 'index']);
@@ -80,7 +101,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{id}/transfer-history', [\App\Http\Controllers\Api\TicketController::class, 'transferHistory']);
         Route::get('/{id}/download', [\App\Http\Controllers\Api\TicketController::class, 'download']);
     });
-    
+
     // Notification routes
     Route::prefix('notifications')->group(function () {
         Route::get('/', [NotificationController::class, 'index']);
@@ -91,7 +112,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/preferences', [NotificationController::class, 'preferences']);
         Route::put('/preferences', [NotificationController::class, 'updatePreferences']);
     });
-    
+
     // Payment routes
     Route::prefix('payments')->group(function () {
         Route::post('/paystack/initialize', [PaymentController::class, 'initializePaystack']);
@@ -99,7 +120,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/verify/{transactionId}', [PaymentController::class, 'verifyPayment']);
         Route::get('/transactions', [PaymentController::class, 'transactions']);
     });
-    
+
     // Refund routes
     Route::prefix('refunds')->group(function () {
         Route::get('/', [RefundController::class, 'index']);
@@ -124,7 +145,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [OrganizerListingController::class, 'destroy']);
         });
     });
-    
+
     // Ticket validation endpoints (for organizers/scanners)
     Route::middleware(['auth:api'])->prefix('tickets')->group(function () {
         Route::post('/validate', [TicketValidationController::class, 'validate']);
@@ -132,7 +153,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/batch-validate', [TicketValidationController::class, 'batchValidate']);
         Route::post('/validate-by-code', [TicketValidationController::class, 'validateByCode']);
     });
-    
+
     // Event manifest for offline mode
     Route::middleware(['auth:api', 'organizer'])->prefix('events')->group(function () {
         Route::get('/{id}/manifest', [TicketValidationController::class, 'getManifest']);
@@ -151,13 +172,13 @@ Route::middleware(['auth:api', 'organizer'])->prefix('organizer')->group(functio
         // Route::get('/{id}/bookings', [OrganizerEventController::class, 'bookings']);
         // Route::get('/{id}/analytics', [OrganizerEventController::class, 'analytics']);
     });
-    
+
     // Ticket scanning (to be implemented)
     Route::prefix('scan')->group(function () {
         // Route::post('/validate', [ScanController::class, 'validateTicket']);
         // Route::post('/checkin', [ScanController::class, 'checkinTicket']);
     });
-    
+
     // Organizer analytics (to be implemented)
     Route::prefix('analytics')->group(function () {
         // Route::get('/dashboard', [OrganizerAnalyticsController::class, 'dashboard']);
@@ -184,6 +205,6 @@ Route::prefix('webhooks')->group(function () {
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
-        'timestamp' => now()->toIso8601String()
+        'timestamp' => now()->toIso8601String(),
     ]);
 });

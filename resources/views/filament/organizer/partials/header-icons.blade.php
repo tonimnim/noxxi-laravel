@@ -1,4 +1,7 @@
 <div class="flex items-center gap-3">
+    {{-- Dark Mode Toggle --}}
+    @include('filament.organizer.partials.dark-mode-toggle')
+    
     {{-- Notifications Icon with Badge --}}
     <a
         href="#"

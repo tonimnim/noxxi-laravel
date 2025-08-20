@@ -50,6 +50,16 @@ class EventCategorySeeder extends Seeder
                 'is_featured' => true,
                 'parent_id' => null,
             ],
+            [
+                'name' => 'Stays',
+                'slug' => 'stays',
+                'color_hex' => '#9C27B0',
+                'display_order' => 5,
+                'is_active' => true,
+                'is_featured' => true,
+                'parent_id' => null,
+                'description' => 'Accommodation and lodging options',
+            ],
         ];
 
         // Create parent categories first
@@ -94,7 +104,7 @@ class EventCategorySeeder extends Seeder
                 'display_order' => 5,
             ],
             
-            // Sports subcategories
+            // Sports subcategories (simplified to 6 key sports)
             [
                 'name' => 'Football',
                 'slug' => 'football',
@@ -114,30 +124,30 @@ class EventCategorySeeder extends Seeder
                 'display_order' => 3,
             ],
             [
-                'name' => 'Athletics & Marathons',
-                'slug' => 'athletics-marathons',
+                'name' => 'Motorsports',
+                'slug' => 'motorsports',
                 'parent_slug' => 'sports',
                 'display_order' => 4,
             ],
             [
-                'name' => 'Motorsports',
-                'slug' => 'motorsports',
+                'name' => 'Pool',
+                'slug' => 'pool',
                 'parent_slug' => 'sports',
                 'display_order' => 5,
             ],
             [
-                'name' => 'eSports',
-                'slug' => 'esports',
+                'name' => 'Combat',
+                'slug' => 'combat',
                 'parent_slug' => 'sports',
                 'display_order' => 6,
             ],
             
             // Cinema has no subcategories
             
-            // Experiences subcategories
+            // Experiences subcategories (simplified to 4 only)
             [
-                'name' => 'Nightlife & Parties',
-                'slug' => 'nightlife-parties',
+                'name' => 'Nightlife',
+                'slug' => 'nightlife',
                 'parent_slug' => 'experiences',
                 'display_order' => 1,
             ],
@@ -159,17 +169,19 @@ class EventCategorySeeder extends Seeder
                 'parent_slug' => 'experiences',
                 'display_order' => 4,
             ],
+            
+            // Stays subcategories
             [
-                'name' => 'Food & Drink Tours',
-                'slug' => 'food-drink-tours',
-                'parent_slug' => 'experiences',
-                'display_order' => 5,
+                'name' => 'Airbnb',
+                'slug' => 'airbnb',
+                'parent_slug' => 'stays',
+                'display_order' => 1,
             ],
             [
-                'name' => 'Cultural Tours',
-                'slug' => 'cultural-tours',
-                'parent_slug' => 'experiences',
-                'display_order' => 6,
+                'name' => 'Resorts',
+                'slug' => 'resorts',
+                'parent_slug' => 'stays',
+                'display_order' => 2,
             ],
         ];
 

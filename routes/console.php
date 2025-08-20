@@ -24,3 +24,8 @@ Schedule::command('notifications:send-event-reminders --hours=6')
 Schedule::call(function () {
     app(\App\Services\NotificationService::class)->cleanOldNotifications(30);
 })->daily()->at('03:00');
+
+// Aggregate geographic data every 30 minutes for heat map
+Schedule::job(new \App\Jobs\AggregateGeographicData())
+    ->everyThirtyMinutes()
+    ->withoutOverlapping();

@@ -43,10 +43,14 @@ Before implementing any feature or making changes:
    - Keep it simple and maintainable
 
 ## Key Principles
-
+   **EVERY QUERY MUST BE OPTIMIZED FOR OPTIMUM PERFOMANCE** THIS IS LARAVEL, IT CAN BE SLOW WHEN NOT WELL OPTIMIZED, YOULL UNDERTAKE QUERYOPTIMIZATION TECHNIQUES
 - **No over-engineering** - Keep solutions simple and straightforward
 - **Consistency first** - Follow existing patterns in the codebase
 - **Context awareness** - Always understand the surrounding code before making changes
 - **Minimal navigation** - Keep UI clean and focused
 - **User-centric naming** - Use terminology that fits all use cases (e.g., "Listings" instead of "Events")
+- **System-wide thinking** - Always consider the entire system impact before making changes
+- **Standard practices only** - Use Laravel/framework standards, avoid custom solutions when built-in options exist
+- **No redundant files** - Don't create unnecessary migrations, models, or files when existing solutions work
+- **Cache for temporary data** - Use cache/Redis for verification codes and temporary data, not database columns
 

@@ -197,6 +197,8 @@
 </template>
 
 <script>
+import secureStorage from '../services/SecureStorage';
+
 export default {
   name: 'LoginForm',
   data() {
@@ -256,10 +258,10 @@ export default {
         console.log('Login response:', data);
 
         if (response.ok && data.status === 'success') {
-          // Store token if using API authentication
+          // Store token using secure storage
           if (data.data && data.data.token) {
-            localStorage.setItem('auth_token', data.data.token);
-            console.log('Token stored');
+            const stored = secureStorage.setToken(data.data.token);
+            console.log('Token stored securely:', stored);
           }
           
           // Redirect based on user role

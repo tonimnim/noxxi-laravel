@@ -76,4 +76,20 @@ class EventResource extends Resource
     {
         return 'success';
     }
+
+    public static function canCreate(): bool
+    {
+        $organizer = Auth::user()->organizer;
+        
+        if (!$organizer) {
+            return false;
+        }
+        
+        // Check if organizer is verified
+        if (!$organizer->is_verified) {
+            return false;
+        }
+        
+        return true;
+    }
 }

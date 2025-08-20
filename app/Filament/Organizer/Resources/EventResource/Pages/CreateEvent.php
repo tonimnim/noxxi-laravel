@@ -15,6 +15,19 @@ class CreateEvent extends CreateRecord
     
     protected static string $resource = EventResource::class;
     
+    public function mount(): void
+    {
+        $organizer = Auth::user()->organizer;
+        
+        if (!$organizer || !$organizer->is_verified) {
+            $this->notify('danger', 'Account Not Verified', 'Your organizer account needs to be verified by an admin before you can create listings. Please wait for approval.');
+            $this->redirect(EventResource::getUrl('index'));
+            return;
+        }
+        
+        parent::mount();
+    }
+    
     protected function getSteps(): array
     {
         return [

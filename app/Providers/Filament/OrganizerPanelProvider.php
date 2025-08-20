@@ -6,7 +6,6 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -38,7 +37,7 @@ class OrganizerPanelProvider extends PanelProvider
                 'success' => Color::Green,
                 'warning' => Color::Orange,
             ])
-            ->darkMode(false)
+            ->darkMode(true)
             ->font('Inter')
             ->discoverResources(in: app_path('Filament/Organizer/Resources'), for: 'App\\Filament\\Organizer\\Resources')
             ->discoverPages(in: app_path('Filament/Organizer/Pages'), for: 'App\\Filament\\Organizer\\Pages')
@@ -69,6 +68,9 @@ class OrganizerPanelProvider extends PanelProvider
             ->sidebarWidth('15rem') // Reduce sidebar width (default is 20rem)
             ->maxContentWidth('full')
             ->spa()
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
+            ->globalSearchDebounce('500ms')
             ->renderHook(
                 'panels::user-menu.before',
                 fn () => view('filament.organizer.partials.header-icons')

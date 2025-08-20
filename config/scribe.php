@@ -1,30 +1,65 @@
 <?php
 
-use Knuckles\Scribe\Extracting\Strategies;
-use Knuckles\Scribe\Config\Defaults;
 use Knuckles\Scribe\Config\AuthIn;
-use function Knuckles\Scribe\Config\{removeStrategies, configureStrategy};
+use Knuckles\Scribe\Config\Defaults;
+use Knuckles\Scribe\Extracting\Strategies;
+
+use function Knuckles\Scribe\Config\configureStrategy;
+use function Knuckles\Scribe\Config\removeStrategies;
 
 // Only the most common configs are shown. See the https://scribe.knuckles.wtf/laravel/reference/config for all.
 
 return [
     // The HTML <title> for the generated documentation.
-    'title' => config('app.name') . ' API Documentation',
+    'title' => 'Noxxi API Documentation',
 
     // A short description of your API. Will be included in the docs webpage, Postman collection and OpenAPI spec.
-    'description' => '',
+    'description' => 'Noxxi is an African-focused event ticketing and management platform supporting multiple countries and currencies across Africa.',
 
     // Text to place in the "Introduction" section, right after the `description`. Markdown and HTML are supported.
-    'intro_text' => <<<INTRO
-        This documentation aims to provide all the information you need to work with our API.
-
-        <aside>As you scroll, you'll see code examples for working with the API in different programming languages in the dark area to the right (or as part of the content on mobile).
-        You can switch the language used with the tabs at the top right (or from the nav menu at the top left on mobile).</aside>
+    'intro_text' => <<<'INTRO'
+        Welcome to the Noxxi API documentation! This API powers our mobile applications and web platform for event management and ticketing across Africa.
+        
+        ## Authentication
+        Most endpoints require authentication using OAuth2 Bearer tokens. Include your token in the `Authorization` header:
+        ```
+        Authorization: Bearer {your-token}
+        ```
+        
+        ## Base URLs
+        - Production: `https://api.noxxi.com/api`
+        - Development: `http://localhost:8000/api`
+        
+        ## Rate Limiting
+        API requests are rate-limited to ensure fair usage:
+        - Authentication endpoints: 5 requests per minute
+        - General endpoints: 60 requests per minute
+        - Password reset: 3 requests per hour
+        
+        ## Response Format
+        All responses follow a consistent JSON structure:
+        ```json
+        {
+            "status": "success|error",
+            "message": "Description",
+            "data": {}
+        }
+        ```
+        
+        ## Supported Currencies
+        - KES (Kenyan Shilling)
+        - NGN (Nigerian Naira)
+        - ZAR (South African Rand)
+        - GHS (Ghanaian Cedi)
+        - UGX (Ugandan Shilling)
+        - TZS (Tanzanian Shilling)
+        - EGP (Egyptian Pound)
+        - USD (US Dollar)
     INTRO,
 
     // The base URL displayed in the docs.
     // If you're using `laravel` type, you can set this to a dynamic string, like '{{ config("app.tenant_url") }}' to get a dynamic base URL.
-    'base_url' => config("app.url"),
+    'base_url' => config('app.url'),
 
     // Routes to include in the docs
     'routes' => [
@@ -82,7 +117,7 @@ return [
     ],
 
     'external' => [
-        'html_attributes' => []
+        'html_attributes' => [],
     ],
 
     'try_it_out' => [
@@ -103,17 +138,17 @@ return [
     // How is your API authenticated? This information will be used in the displayed docs, generated examples and response calls.
     'auth' => [
         // Set this to true if ANY endpoints in your API use authentication.
-        'enabled' => false,
+        'enabled' => true,
 
         // Set this to true if your API should be authenticated by default. If so, you must also set `enabled` (above) to true.
         // You can then use @unauthenticated or @authenticated on individual endpoints to change their status from the default.
-        'default' => false,
+        'default' => true,
 
         // Where is the auth value meant to be sent in a request?
         'in' => AuthIn::BEARER->value,
 
         // The name of the auth parameter (e.g. token, key, apiKey) or header (e.g. Authorization, Api-Key).
-        'name' => 'key',
+        'name' => 'Authorization',
 
         // The value of the parameter to be used by Scribe to authenticate response calls.
         // This will NOT be included in the generated documentation. If empty, Scribe will use a random value.
@@ -121,10 +156,10 @@ return [
 
         // Placeholder your users will see for the auth parameter in the example requests.
         // Set this to null if you want Scribe to use a random value as placeholder instead.
-        'placeholder' => '{YOUR_AUTH_KEY}',
+        'placeholder' => '{YOUR_ACCESS_TOKEN}',
 
         // Any extra authentication-related info for your users. Markdown and HTML are supported.
-        'extra_info' => 'You can retrieve your token by visiting your dashboard and clicking <b>Generate API token</b>.',
+        'extra_info' => 'To authenticate, obtain an access token by calling the <code>/api/auth/login</code> endpoint with your credentials. Include the token in the Authorization header as: <code>Authorization: Bearer {access_token}</code>',
     ],
 
     // Example requests for each endpoint will be shown in each of these languages.
@@ -237,7 +272,7 @@ return [
         ),
         'responseFields' => [
             ...Defaults::RESPONSE_FIELDS_STRATEGIES,
-        ]
+        ],
     ],
 
     // For response calls, API resource responses and transformer responses,

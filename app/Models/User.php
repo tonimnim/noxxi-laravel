@@ -12,9 +12,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
 
-class User extends Authenticatable implements MustVerifyEmail, FilamentUser
+class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
-    use HasFactory, Notifiable, HasApiTokens, HasUuids;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     /**
      * Indicates if the IDs are auto-incrementing.
@@ -51,6 +51,12 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'email_verified_at',
         'phone_verified_at',
         'last_active_at',
+        // Security fields
+        'failed_login_attempts',
+        'locked_until',
+        'last_login_ip',
+        'last_login_at',
+        'login_history',
     ];
 
     /**
@@ -61,6 +67,9 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
+        'failed_login_attempts',
+        'locked_until',
+        'login_history',
     ];
 
     /**
@@ -81,11 +90,15 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'last_active_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'locked_until' => 'datetime',
             'password' => 'hashed',
             'notification_preferences' => 'array',
             'metadata' => 'array',
+            'login_history' => 'array',
             'is_active' => 'boolean',
             'is_verified' => 'boolean',
+            'failed_login_attempts' => 'integer',
         ];
     }
 
@@ -114,6 +127,26 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     }
 
     /**
+     * Check if account is locked
+     */
+    public function isLocked(): bool
+    {
+        return $this->locked_until && $this->locked_until->isFuture();
+    }
+
+    /**
+     * Get minutes until account unlock
+     */
+    public function minutesUntilUnlock(): int
+    {
+        if (! $this->isLocked()) {
+            return 0;
+        }
+
+        return $this->locked_until->diffInMinutes(now());
+    }
+
+    /**
      * Update last active timestamp
      */
     public function updateLastActive(): void
@@ -135,7 +168,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         // Check email verification first
-        if (!$this->hasVerifiedEmail()) {
+        if (! $this->hasVerifiedEmail()) {
             return false;
         }
 
@@ -198,7 +231,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     {
         // First check if user owns the organizer of this event
         $event = \App\Models\Event::find($eventId);
-        if (!$event) {
+        if (! $event) {
             return false;
         }
 

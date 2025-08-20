@@ -306,6 +306,8 @@
 </template>
 
 <script>
+import secureStorage from '../services/SecureStorage';
+
 export default {
   name: 'RegisterForm',
   data() {
@@ -375,9 +377,9 @@ export default {
         if (response.ok) {
           this.success = 'Account created successfully! Please check your logs for the verification code.';
           
-          // Store token if provided
+          // Store token using secure storage
           if (data.data && data.data.token) {
-            localStorage.setItem('auth_token', data.data.token);
+            secureStorage.setToken(data.data.token);
           }
           
           // Redirect to email verification after a short delay
