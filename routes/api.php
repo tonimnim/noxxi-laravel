@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
-use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\EventCategoryController;
+use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\EventSearchController;
 use App\Http\Controllers\Api\EventTrendingController;
 use App\Http\Controllers\Api\HomeController;
+use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RefundController;
@@ -28,12 +30,15 @@ use Illuminate\Support\Facades\Route;
 
 // Home page routes
 Route::get('/home/trending', [HomeController::class, 'trending']);
+Route::get('/home/featured', [HomeController::class, 'featured']);
 
 // Public auth routes with rate limiting
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('register-organizer', [AuthController::class, 'registerOrganizer'])->middleware('throttle:auth');
+    Route::post('organizer/register', [AuthController::class, 'registerOrganizer'])->middleware('throttle:auth'); // Alternative route
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    Route::get('check', [AuthController::class, 'checkAuth']); // Check if user is authenticated
 
     // Password reset routes (public) with stricter rate limiting
     Route::post('password/request-reset', [AuthController::class, 'requestPasswordReset'])->middleware('throttle:password-reset');
@@ -55,6 +60,25 @@ Route::prefix('events')->group(function () {
     Route::get('/search-suggestions', [EventSearchController::class, 'suggestions']);
     Route::get('/{id}', [EventController::class, 'show']);
     Route::get('/{id}/similar', [EventTrendingController::class, 'similar']);
+});
+
+// Category-specific routes
+Route::get('/experiences', [EventController::class, 'experiences']);
+Route::get('/sports', [EventController::class, 'sports']);
+Route::get('/cinema', [EventController::class, 'cinema']);
+
+// Search route
+Route::get('/search', [EventSearchController::class, 'search']);
+
+// Location detection (IP-based)
+Route::get('/location/detect', [LocationController::class, 'detect']);
+
+// Cities routes (public)
+Route::prefix('cities')->group(function () {
+    Route::get('/', [CityController::class, 'index']);
+    Route::get('/popular', [CityController::class, 'popular']);
+    Route::get('/search', [CityController::class, 'search']);
+    Route::get('/region/{region}', [CityController::class, 'byRegion']);
 });
 
 // System health endpoints (public but rate-limited)
@@ -120,6 +144,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/verify/{transactionId}', [PaymentController::class, 'verifyPayment']);
         Route::get('/transactions', [PaymentController::class, 'transactions']);
     });
+});
+
+// Payment callback route (requires auth but outside the main auth group for flexibility)
+Route::middleware('auth:api')->group(function () {
+    Route::get('/payments/callback', [PaymentController::class, 'paymentCallback']);
 
     // Refund routes
     Route::prefix('refunds')->group(function () {
@@ -144,6 +173,13 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/publish', [OrganizerListingController::class, 'publish']);
             Route::delete('/{id}', [OrganizerListingController::class, 'destroy']);
         });
+
+        // Financial management
+        Route::prefix('financial')->group(function () {
+            Route::get('/summary', [\App\Http\Controllers\Api\OrganizerFinancialController::class, 'summary']);
+            Route::get('/transactions', [\App\Http\Controllers\Api\OrganizerFinancialController::class, 'transactions']);
+            Route::get('/commission-breakdown', [\App\Http\Controllers\Api\OrganizerFinancialController::class, 'commissionBreakdown']);
+        });
     });
 
     // Ticket validation endpoints (for organizers/scanners)
@@ -152,6 +188,14 @@ Route::prefix('v1')->group(function () {
         Route::post('/check-in', [TicketValidationController::class, 'checkIn']);
         Route::post('/batch-validate', [TicketValidationController::class, 'batchValidate']);
         Route::post('/validate-by-code', [TicketValidationController::class, 'validateByCode']);
+        
+        // Secure QR code endpoints (on-demand generation)
+        Route::get('/{id}/qr', [\App\Http\Controllers\Api\SecureQrController::class, 'generateQr'])
+            ->middleware('throttle:10,1');
+        Route::post('/qr/validate', [\App\Http\Controllers\Api\SecureQrController::class, 'validateQr'])
+            ->middleware('throttle:30,1');
+        Route::post('/qr/batch', [\App\Http\Controllers\Api\SecureQrController::class, 'batchGenerateQr'])
+            ->middleware('throttle:5,1');
     });
 
     // Event manifest for offline mode

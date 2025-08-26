@@ -37,7 +37,7 @@ return new class extends Migration
             // Status tracking
             $table->enum('status', ['pending', 'confirmed', 'cancelled', 'expired', 'refunded'])->default('pending');
             $table->enum('payment_status', ['unpaid', 'processing', 'paid', 'failed', 'refunded', 'partial_refund'])->default('unpaid');
-            $table->enum('payment_method', ['mpesa', 'card', 'bank_transfer', 'paypal', 'stripe', 'cash', 'crypto'])->nullable();
+            $table->enum('payment_method', ['mpesa', 'card', 'bank_transfer', 'paypal', 'stripe', 'cash'])->nullable();
             $table->string('payment_reference', 100)->nullable();
             $table->jsonb('payment_provider_data')->default('{}');
 

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Ticket;
-use App\Services\QrCodeService;
+use App\Services\SecureQrService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -13,13 +13,41 @@ use Illuminate\Support\Facades\DB;
 
 class TicketValidationController extends Controller
 {
-    protected QrCodeService $qrService;
-    
-    public function __construct(QrCodeService $qrService)
+    protected SecureQrService $qrService;
+
+    public function __construct(SecureQrService $qrService)
     {
         $this->qrService = $qrService;
     }
-    
+
+    /**
+     * Check if user has permission to manage event (as organizer or manager)
+     */
+    protected function userCanManageEvent(Event $event): bool
+    {
+        $user = Auth::user();
+
+        // Check if user is the organizer
+        if ($user->organizer && $event->organizer_id === $user->organizer->id) {
+            return true;
+        }
+
+        // Check if user is a manager with permission for this event
+        $managerPermission = $user->activeScannerPermissions()
+            ->where('organizer_id', $event->organizer_id)
+            ->where('can_scan_tickets', true)
+            ->first();
+
+        if ($managerPermission) {
+            // Check if manager has access to all events or this specific event
+            if (empty($managerPermission->event_ids) || in_array($event->id, $managerPermission->event_ids)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Validate a ticket QR code
      */
@@ -30,30 +58,27 @@ class TicketValidationController extends Controller
             'gate_id' => 'nullable|string|max:50',
             'device_id' => 'nullable|string|max:100',
         ]);
-        
+
         // Check if organizer has permission for this event
         $result = $this->qrService->validateQrCode(
             $validated['qr_content'],
             $validated['gate_id'] ?? null
         );
-        
+
         if ($result['success']) {
-            // Verify organizer has access to this event
-            $organizer = Auth::user()->organizer;
-            if ($organizer) {
-                $event = Event::find($result['event']['id']);
-                if ($event && $event->organizer_id !== $organizer->id) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'You do not have permission to validate tickets for this event'
-                    ], 403);
-                }
+            // Verify user has permission to validate tickets for this event
+            $event = Event::find($result['event']['id']);
+            if ($event && ! $this->userCanManageEvent($event)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to validate tickets for this event',
+                ], 403);
             }
         }
-        
+
         return response()->json($result);
     }
-    
+
     /**
      * Check in a ticket (mark as used)
      */
@@ -64,32 +89,31 @@ class TicketValidationController extends Controller
             'gate_id' => 'nullable|string|max:50',
             'device_id' => 'nullable|string|max:100',
         ]);
-        
+
         $ticket = Ticket::find($validated['ticket_id']);
-        
-        if (!$ticket) {
+
+        if (! $ticket) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ticket not found'
+                'message' => 'Ticket not found',
             ], 404);
         }
-        
-        // Verify organizer has access
-        $organizer = Auth::user()->organizer;
-        if (!$organizer || $ticket->event->organizer_id !== $organizer->id) {
+
+        // Verify user has permission to check in tickets for this event
+        if (! $this->userCanManageEvent($ticket->event)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to check in this ticket'
+                'message' => 'You do not have permission to check in this ticket',
             ], 403);
         }
-        
+
         $result = $this->qrService->checkInTicket(
             $validated['ticket_id'],
             Auth::id(),
             $validated['gate_id'] ?? null,
             $validated['device_id'] ?? null
         );
-        
+
         // Log check-in activity
         if ($result['success']) {
             activity()
@@ -101,10 +125,10 @@ class TicketValidationController extends Controller
                 ])
                 ->log('Ticket checked in');
         }
-        
+
         return response()->json($result);
     }
-    
+
     /**
      * Batch validate multiple tickets
      */
@@ -115,7 +139,7 @@ class TicketValidationController extends Controller
             'tickets.*.qr_content' => 'required|string',
             'gate_id' => 'nullable|string|max:50',
         ]);
-        
+
         $results = [];
         foreach ($validated['tickets'] as $index => $ticketData) {
             $results[$index] = $this->qrService->validateQrCode(
@@ -123,7 +147,7 @@ class TicketValidationController extends Controller
                 $validated['gate_id'] ?? null
             );
         }
-        
+
         return response()->json([
             'success' => true,
             'results' => $results,
@@ -131,39 +155,38 @@ class TicketValidationController extends Controller
                 'total' => count($results),
                 'valid' => collect($results)->where('success', true)->count(),
                 'invalid' => collect($results)->where('success', false)->count(),
-            ]
+            ],
         ]);
     }
-    
+
     /**
      * Get offline validation manifest for an event
      */
     public function getManifest($eventId)
     {
         $event = Event::find($eventId);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Event not found'
+                'message' => 'Event not found',
             ], 404);
         }
-        
-        // Verify organizer has access
-        $organizer = Auth::user()->organizer;
-        if (!$organizer || $event->organizer_id !== $organizer->id) {
+
+        // Verify user has permission to access this event's manifest
+        if (! $this->userCanManageEvent($event)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to access this manifest'
+                'message' => 'You do not have permission to access this manifest',
             ], 403);
         }
-        
+
         // Cache manifest for 5 minutes to reduce database load
         $cacheKey = "event_manifest_{$eventId}";
         $manifest = Cache::remember($cacheKey, 300, function () use ($event) {
             return $this->qrService->generateOfflineManifest($event);
         });
-        
+
         return response()->json([
             'success' => true,
             'event' => [
@@ -176,30 +199,29 @@ class TicketValidationController extends Controller
             'expires_at' => now()->addMinutes(5)->toIso8601String(),
         ]);
     }
-    
+
     /**
      * Get real-time check-in statistics for an event
      */
     public function getCheckInStats($eventId)
     {
         $event = Event::find($eventId);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Event not found'
+                'message' => 'Event not found',
             ], 404);
         }
-        
-        // Verify organizer has access
-        $organizer = Auth::user()->organizer;
-        if (!$organizer || $event->organizer_id !== $organizer->id) {
+
+        // Verify user has permission to view this event's statistics
+        if (! $this->userCanManageEvent($event)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to view these statistics'
+                'message' => 'You do not have permission to view these statistics',
             ], 403);
         }
-        
+
         $stats = DB::table('tickets')
             ->where('event_id', $eventId)
             ->selectRaw("
@@ -210,13 +232,13 @@ class TicketValidationController extends Controller
                 COUNT(CASE WHEN status = 'transferred' THEN 1 END) as transferred
             ")
             ->first();
-        
+
         $recentCheckIns = Ticket::where('event_id', $eventId)
             ->where('status', 'used')
             ->orderBy('used_at', 'desc')
             ->limit(10)
             ->get(['id', 'holder_name', 'ticket_type', 'used_at', 'entry_gate']);
-        
+
         $gateStats = DB::table('tickets')
             ->where('event_id', $eventId)
             ->where('status', 'used')
@@ -224,7 +246,7 @@ class TicketValidationController extends Controller
             ->groupBy('entry_gate')
             ->selectRaw('entry_gate, COUNT(*) as count')
             ->get();
-        
+
         return response()->json([
             'success' => true,
             'statistics' => [
@@ -233,8 +255,8 @@ class TicketValidationController extends Controller
                 'not_checked_in' => $stats->not_checked_in,
                 'cancelled' => $stats->cancelled,
                 'transferred' => $stats->transferred,
-                'check_in_percentage' => $stats->total_tickets > 0 
-                    ? round(($stats->checked_in / $stats->total_tickets) * 100, 2) 
+                'check_in_percentage' => $stats->total_tickets > 0
+                    ? round(($stats->checked_in / $stats->total_tickets) * 100, 2)
                     : 0,
             ],
             'recent_check_ins' => $recentCheckIns,
@@ -242,7 +264,7 @@ class TicketValidationController extends Controller
             'last_updated' => now()->toIso8601String(),
         ]);
     }
-    
+
     /**
      * Manually validate a ticket by code (backup method)
      */
@@ -252,27 +274,26 @@ class TicketValidationController extends Controller
             'ticket_code' => 'required|string',
             'event_id' => 'required|uuid',
         ]);
-        
+
         $ticket = Ticket::where('ticket_code', $validated['ticket_code'])
             ->where('event_id', $validated['event_id'])
             ->first();
-        
-        if (!$ticket) {
+
+        if (! $ticket) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ticket not found'
+                'message' => 'Ticket not found',
             ], 404);
         }
-        
-        // Verify organizer has access
-        $organizer = Auth::user()->organizer;
-        if (!$organizer || $ticket->event->organizer_id !== $organizer->id) {
+
+        // Verify user has permission to validate this ticket
+        if (! $this->userCanManageEvent($ticket->event)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to validate this ticket'
+                'message' => 'You do not have permission to validate this ticket',
             ], 403);
         }
-        
+
         if ($ticket->status === 'used') {
             return response()->json([
                 'success' => false,
@@ -281,15 +302,15 @@ class TicketValidationController extends Controller
                 'entry_gate' => $ticket->entry_gate,
             ]);
         }
-        
-        if (!$ticket->isValid()) {
+
+        if (! $ticket->isValid()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ticket is not valid',
                 'status' => $ticket->status,
             ]);
         }
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Ticket is valid',

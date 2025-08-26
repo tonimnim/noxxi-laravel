@@ -22,7 +22,7 @@
 
     {{-- Settings Icon --}}
     <a
-        href="#"
+        href="{{ url('/organizer/dashboard/profile') }}"
         class="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
         title="Settings"
     >

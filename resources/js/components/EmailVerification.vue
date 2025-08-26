@@ -90,16 +90,24 @@ export default {
     methods: {
         async fetchUser() {
             try {
-                const res = await fetch('/api/auth/user', {
+                const res = await fetch('/auth/web/user', {
                     headers: { 
-                        ...secureStorage.getAuthHeader(),
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
                 });
-                const data = await res.json();
-                this.userEmail = data.data.user.email;
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data && data.data.user) {
+                        this.userEmail = data.data.user.email;
+                    }
+                } else {
+                    console.error('Failed to fetch user');
+                }
             } catch (e) {
-                console.error(e);
+                console.error('Error fetching user:', e);
             }
         },
         
@@ -133,24 +141,36 @@ export default {
             this.error = '';
             
             try {
-                const res = await fetch('/api/auth/verify-email', {
+                const res = await fetch('/auth/web/verify-email', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        ...secureStorage.getAuthHeader(),
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify({ code: this.verificationCode })
+                    body: JSON.stringify({ code: this.verificationCode }),
+                    credentials: 'include'
                 });
                 
                 const data = await res.json();
                 
                 if (res.ok) {
-                    window.location.href = data.data.redirect;
+                    const redirectPath = data.data?.redirect || data.redirect || '/';
+                    window.location.href = redirectPath;
                 } else {
-                    this.error = data.message || 'Invalid code';
+                    this.error = data.message || 'Invalid verification code. Please try again.';
+                    console.error('Verification error:', data);
+                    
+                    // Clear the code inputs
                     this.code = ['', '', '', '', '', ''];
                     this.$refs.digit0[0].focus();
+                    
+                    // If not authenticated, redirect to login
+                    if (res.status === 401) {
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 2000);
+                    }
                 }
             } catch (e) {
                 this.error = 'An error occurred';
@@ -163,13 +183,18 @@ export default {
             if (this.cooldown > 0) return;
             
             try {
-                await fetch('/api/auth/resend-verification', {
+                const res = await fetch('/auth/web/resend-verification', {
                     method: 'POST',
                     headers: {
-                        ...secureStorage.getAuthHeader(),
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    }
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
                 });
+                
+                if (res.ok) {
+                    console.log('Verification code resent successfully');
+                }
                 
                 this.cooldown = 60;
                 const timer = setInterval(() => {

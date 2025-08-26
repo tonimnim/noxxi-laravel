@@ -49,7 +49,7 @@ class OrganizerRegisterRequest extends FormRequest
             'business_name' => ['required', 'string', 'max:255'],
             'business_country' => ['sometimes', 'string', 'size:2'],
             'business_timezone' => ['sometimes', 'timezone'],
-            'default_currency' => ['sometimes', 'string', 'in:KES,NGN,ZAR,GHS,UGX,TZS,EGP,USD'],
+            'default_currency' => ['sometimes', 'string', 'in:'.implode(',', array_keys(config('currencies.supported', [])))],
         ];
     }
 

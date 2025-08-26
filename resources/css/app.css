@@ -6,6 +6,19 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
+/* Custom Font */
+@font-face {
+    font-family: 'SilkRemington';
+    src: url('/fonts/SilkRemington-SBold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+.font-silk {
+    font-family: 'SilkRemington', serif;
+}
+
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';

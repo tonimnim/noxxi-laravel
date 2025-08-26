@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
-use App\Models\EventCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,52 +18,52 @@ class OrganizerListingController extends Controller
     public function index(Request $request)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $query = Event::where('organizer_id', $organizer->id)
             ->with(['category:id,name,parent_id']);
-        
+
         // Apply filters
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
-        
+
         if ($request->has('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('title', 'ilike', '%' . $request->search . '%')
-                  ->orWhere('venue_name', 'ilike', '%' . $request->search . '%');
+                $q->where('title', 'ilike', '%'.$request->search.'%')
+                    ->orWhere('venue_name', 'ilike', '%'.$request->search.'%');
             });
         }
-        
+
         $listings = $query->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 20);
-        
+
         return response()->json([
             'success' => true,
-            'data' => $listings
+            'data' => $listings,
         ]);
     }
-    
+
     /**
      * Create a new listing
      */
     public function store(Request $request)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string|max:5000',
@@ -77,7 +76,7 @@ class OrganizerListingController extends Controller
             'event_date' => 'required|date|after:now',
             'end_date' => 'nullable|date|after:event_date',
             'capacity' => 'required|integer|min:1',
-            'currency' => ['required', Rule::in(['KES', 'NGN', 'ZAR', 'GHS', 'UGX', 'TZS', 'EGP', 'USD'])],
+            'currency' => ['required', Rule::in(array_keys(config('currencies.supported', [])))],
             'ticket_types' => 'required|array|min:1',
             'ticket_types.*.name' => 'required|string|max:50',
             'ticket_types.*.price' => 'required|numeric|min:0',
@@ -98,22 +97,22 @@ class OrganizerListingController extends Controller
             'ticket_sales_config' => 'nullable|array',
             'listing_settings' => 'nullable|array',
         ]);
-        
+
         DB::beginTransaction();
-        
+
         try {
             // Calculate min and max prices
             $prices = array_column($validated['ticket_types'], 'price');
             $minPrice = min($prices);
             $maxPrice = max($prices);
-            
+
             // Generate slug
             $slug = Str::slug($validated['title']);
-            $count = Event::where('slug', 'like', $slug . '%')->count();
+            $count = Event::where('slug', 'like', $slug.'%')->count();
             if ($count > 0) {
-                $slug = $slug . '-' . ($count + 1);
+                $slug = $slug.'-'.($count + 1);
             }
-            
+
             // Create event
             $event = Event::create([
                 'organizer_id' => $organizer->id,
@@ -153,88 +152,88 @@ class OrganizerListingController extends Controller
                 'qr_secret_key' => Str::random(32),
                 'tickets_sold' => 0,
             ]);
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Listing created successfully',
-                'data' => $event->load('category')
+                'data' => $event->load('category'),
             ], 201);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create listing',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
-    
+
     /**
      * Get a specific listing
      */
     public function show($id)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $event = Event::where('organizer_id', $organizer->id)
             ->with(['category', 'bookings', 'tickets'])
             ->find($id);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Listing not found'
+                'message' => 'Listing not found',
             ], 404);
         }
-        
+
         return response()->json([
             'success' => true,
-            'data' => $event
+            'data' => $event,
         ]);
     }
-    
+
     /**
      * Update a listing
      */
     public function update(Request $request, $id)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $event = Event::where('organizer_id', $organizer->id)->find($id);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Listing not found'
+                'message' => 'Listing not found',
             ], 404);
         }
-        
+
         // Prevent editing if tickets are sold
         if ($event->tickets_sold > 0 && $request->has('ticket_types')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot modify ticket types after tickets have been sold'
+                'message' => 'Cannot modify ticket types after tickets have been sold',
             ], 400);
         }
-        
+
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string|max:5000',
@@ -246,7 +245,7 @@ class OrganizerListingController extends Controller
             'longitude' => 'nullable|numeric|between:-180,180',
             'event_date' => 'sometimes|date|after:now',
             'end_date' => 'nullable|date|after:event_date',
-            'capacity' => 'sometimes|integer|min:' . $event->tickets_sold,
+            'capacity' => 'sometimes|integer|min:'.$event->tickets_sold,
             'ticket_types' => 'sometimes|array|min:1',
             'tags' => 'nullable|array',
             'age_restriction' => 'nullable|integer|min:0|max:21',
@@ -255,117 +254,117 @@ class OrganizerListingController extends Controller
             'marketing' => 'nullable|array',
             'category_metadata' => 'nullable|array',
         ]);
-        
+
         // Update slug if title changed
         if (isset($validated['title']) && $validated['title'] !== $event->title) {
             $validated['slug'] = Str::slug($validated['title']);
         }
-        
+
         // Recalculate prices if ticket types changed
         if (isset($validated['ticket_types'])) {
             $prices = array_column($validated['ticket_types'], 'price');
             $validated['min_price'] = min($prices);
             $validated['max_price'] = max($prices);
         }
-        
+
         $validated['last_modified_at'] = now();
         $validated['modified_by'] = Auth::id();
-        
+
         $event->update($validated);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Listing updated successfully',
-            'data' => $event->fresh(['category'])
+            'data' => $event->fresh(['category']),
         ]);
     }
-    
+
     /**
      * Publish a listing
      */
     public function publish($id)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $event = Event::where('organizer_id', $organizer->id)->find($id);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Listing not found'
+                'message' => 'Listing not found',
             ], 404);
         }
-        
+
         if ($event->status === 'published') {
             return response()->json([
                 'success' => false,
-                'message' => 'Listing is already published'
+                'message' => 'Listing is already published',
             ], 400);
         }
-        
+
         // Validate event is ready for publishing
         if (empty($event->ticket_types)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot publish without ticket types'
+                'message' => 'Cannot publish without ticket types',
             ], 400);
         }
-        
+
         $event->update([
             'status' => 'published',
             'published_at' => now(),
             'first_published_at' => $event->first_published_at ?? now(),
         ]);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Listing published successfully',
-            'data' => $event
+            'data' => $event,
         ]);
     }
-    
+
     /**
      * Delete a listing (soft delete)
      */
     public function destroy($id)
     {
         $organizer = Auth::user()->organizer;
-        
-        if (!$organizer) {
+
+        if (! $organizer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Organizer profile not found'
+                'message' => 'Organizer profile not found',
             ], 404);
         }
-        
+
         $event = Event::where('organizer_id', $organizer->id)->find($id);
-        
-        if (!$event) {
+
+        if (! $event) {
             return response()->json([
                 'success' => false,
-                'message' => 'Listing not found'
+                'message' => 'Listing not found',
             ], 404);
         }
-        
+
         if ($event->tickets_sold > 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot delete listing with sold tickets'
+                'message' => 'Cannot delete listing with sold tickets',
             ], 400);
         }
-        
+
         $event->update(['status' => 'cancelled']);
-        
+
         return response()->json([
             'success' => true,
-            'message' => 'Listing cancelled successfully'
+            'message' => 'Listing cancelled successfully',
         ]);
     }
 }

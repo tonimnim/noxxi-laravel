@@ -45,21 +45,29 @@
                 </div>
             </div>
             
-            {{-- Next Payout Info --}}
+            {{-- Last Payout Info --}}
+            @if($data['last_payout'])
             <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div class="flex items-center gap-2">
-                    <x-heroicon-o-calendar-days class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <x-heroicon-o-check-circle class="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     <p class="text-sm text-blue-800 dark:text-blue-200">
-                        Next payout scheduled for <span class="font-semibold">{{ $data['next_payout_date'] }}</span>
+                        Last payout: <span class="font-semibold">{{ $data['currency'] }} {{ number_format($data['last_payout']['amount'], 0) }}</span> on {{ $data['last_payout']['date'] }}
                     </p>
                 </div>
             </div>
+            @endif
             
             
             {{-- Request Payout Button --}}
-            <x-filament::button class="w-full" icon="heroicon-o-banknotes">
-                Request Payout
-            </x-filament::button>
+            @if($data['available_balance'] > 0)
+                <x-filament::button 
+                    wire:click="requestPayout"
+                    class="w-full" 
+                    icon="heroicon-o-currency-dollar"
+                    color="success">
+                    Request Payout
+                </x-filament::button>
+            @endif
         </div>
     </x-filament::card>
 </div>

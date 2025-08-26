@@ -6,19 +6,16 @@ use App\Models\Booking;
 use App\Models\Event;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Services\QrCodeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class TicketService
 {
-    protected QrCodeService $qrCodeService;
-    
-    public function __construct(QrCodeService $qrCodeService)
+    public function __construct()
     {
-        $this->qrCodeService = $qrCodeService;
+        // No dependencies needed - QR codes generated on-demand via SecureQrService
     }
-    
+
     /**
      * Create tickets for a confirmed booking
      */
@@ -26,39 +23,48 @@ class TicketService
     {
         $event = $booking->event;
         $ticketTypes = $booking->ticket_types;
-        $customerDetails = $booking->customer_details;
+        $customerDetails = $booking->customer_details ?? [];
         $createdTickets = [];
-        
+
         DB::beginTransaction();
-        
+
         try {
             $ticketCounter = 1;
-            
+
             foreach ($ticketTypes as $ticketType) {
                 $quantity = $ticketType['quantity'] ?? 1;
                 $typeName = $ticketType['name'] ?? 'General';
                 $price = $ticketType['price'] ?? 0;
-                
+
                 for ($i = 0; $i < $quantity; $i++) {
                     // Generate unique ticket code
                     $ticketCode = $this->generateTicketCode($event, $booking);
-                    
+
+                    // Generate ticket hash for security
+                    $ticketId = (string) Str::uuid();
+                    $ticketHash = hash_hmac('sha256',
+                        $ticketId.$booking->id.$event->id.$ticketCode,
+                        config('app.key')
+                    );
+
                     // Determine seat assignment if applicable
                     $seatData = $this->assignSeat($event, $typeName, $ticketCounter);
-                    
-                    // Create ticket
+
+                    // Create ticket with hash
                     $ticket = Ticket::create([
+                        'id' => $ticketId,
                         'booking_id' => $booking->id,
                         'event_id' => $event->id,
                         'ticket_code' => $ticketCode,
+                        'ticket_hash' => $ticketHash,
                         'ticket_type' => $typeName,
                         'price' => $price,
                         'currency' => $event->currency,
                         'seat_number' => $seatData['seat_number'] ?? null,
                         'seat_section' => $seatData['seat_section'] ?? null,
-                        'holder_name' => $customerDetails['name'] ?? $booking->user->full_name,
-                        'holder_email' => $customerDetails['email'] ?? $booking->user->email,
-                        'holder_phone' => $customerDetails['phone'] ?? $booking->user->phone,
+                        'holder_name' => $customerDetails['name'] ?? $booking->customer_name ?? $booking->user->full_name,
+                        'holder_email' => $customerDetails['email'] ?? $booking->customer_email ?? $booking->user->email,
+                        'holder_phone' => $customerDetails['phone'] ?? $booking->customer_phone ?? $booking->user->phone_number,
                         'assigned_to' => $booking->user_id,
                         'status' => 'valid',
                         'valid_from' => $event->event_date->subHours(4), // Valid 4 hours before event
@@ -72,45 +78,45 @@ class TicketService
                             'address' => $event->venue_address,
                         ],
                     ]);
+
+                    // Ensure event has QR secret key for secure generation
+                    if (!$event->qr_secret_key) {
+                        $event->qr_secret_key = Str::random(32);
+                        $event->save();
+                    }
                     
-                    // Generate QR code with security signature
-                    $qrData = $this->qrCodeService->generateTicketQrCode($ticket);
-                    
-                    // Store QR data
-                    $ticket->update([
-                        'qr_code' => $qrData['qr_code_url'],
-                        'ticket_hash' => $qrData['ticket_hash'],
-                    ]);
-                    
+                    // QR codes are now generated on-demand via SecureQrService endpoint
+                    // No need to generate or store them here
+
                     $createdTickets[] = $ticket;
                     $ticketCounter++;
                 }
             }
-            
+
             // Update booking with ticket count
             $booking->update([
                 'status' => 'confirmed',
                 'payment_status' => 'paid',
             ]);
-            
+
             // Update event ticket sold count
             $event->increment('tickets_sold', count($createdTickets));
-            
+
             DB::commit();
-            
+
             return [
                 'success' => true,
                 'tickets' => $createdTickets,
                 'count' => count($createdTickets),
             ];
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
-            
-            throw new \Exception('Failed to create tickets: ' . $e->getMessage());
+
+            throw new \Exception('Failed to create tickets: '.$e->getMessage());
         }
     }
-    
+
     /**
      * Generate unique ticket code
      */
@@ -119,10 +125,10 @@ class TicketService
         $prefix = strtoupper(substr($event->slug, 0, 3));
         $date = $event->event_date->format('md');
         $random = strtoupper(Str::random(6));
-        
+
         return sprintf('%s-%s-%s', $prefix, $date, $random);
     }
-    
+
     /**
      * Assign seat if event has seating
      */
@@ -130,26 +136,26 @@ class TicketService
     {
         // Check if event has seating configuration
         $seatingConfig = $event->gates_config['seating'] ?? null;
-        
-        if (!$seatingConfig) {
+
+        if (! $seatingConfig) {
             return [];
         }
-        
+
         // For VIP tickets, assign VIP section
         if (str_contains(strtolower($ticketType), 'vip')) {
             return [
                 'seat_section' => 'VIP',
-                'seat_number' => 'V' . str_pad($ticketNumber, 3, '0', STR_PAD_LEFT),
+                'seat_number' => 'V'.str_pad($ticketNumber, 3, '0', STR_PAD_LEFT),
             ];
         }
-        
+
         // For regular tickets, assign general section
         return [
             'seat_section' => 'General',
-            'seat_number' => 'G' . str_pad($ticketNumber, 4, '0', STR_PAD_LEFT),
+            'seat_number' => 'G'.str_pad($ticketNumber, 4, '0', STR_PAD_LEFT),
         ];
     }
-    
+
     /**
      * Transfer ticket to another user
      */
@@ -158,71 +164,71 @@ class TicketService
         if ($ticket->assigned_to !== $fromUser->id) {
             throw new \Exception('You do not own this ticket');
         }
-        
+
         if ($ticket->status !== 'valid') {
             throw new \Exception('This ticket cannot be transferred');
         }
-        
+
         // Check if ticket is transferable
         $ticketTypeConfig = collect($ticket->event->ticket_types)
             ->firstWhere('name', $ticket->ticket_type);
-        
-        if ($ticketTypeConfig && !($ticketTypeConfig['transferable'] ?? true)) {
+
+        if ($ticketTypeConfig && ! ($ticketTypeConfig['transferable'] ?? true)) {
             throw new \Exception('This ticket type is not transferable');
         }
-        
+
         DB::beginTransaction();
-        
+
         try {
             $ticket->transferTo($toUser->id, $fromUser->id, $reason);
-            
+
             // Update holder information
             $ticket->update([
                 'holder_name' => $toUser->full_name,
                 'holder_email' => $toUser->email,
                 'holder_phone' => $toUser->phone,
             ]);
-            
+
             // Regenerate QR code with new holder
             $this->qrCodeService->generateTicketQrCode($ticket);
-            
+
             DB::commit();
-            
+
             return true;
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
     }
-    
+
     /**
      * Cancel tickets for a booking
      */
     public function cancelTicketsForBooking(Booking $booking): bool
     {
         DB::beginTransaction();
-        
+
         try {
             // Cancel all tickets
             $booking->tickets()->update([
                 'status' => 'cancelled',
             ]);
-            
+
             // Update event ticket count
             $cancelledCount = $booking->tickets()->count();
             $booking->event->decrement('tickets_sold', $cancelledCount);
-            
+
             DB::commit();
-            
+
             return true;
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
     }
-    
+
     /**
      * Get ticket with full details for display
      */
@@ -234,14 +240,14 @@ class TicketService
             'assignedTo:id,full_name,email',
         ])->find($ticketId);
     }
-    
+
     /**
      * Batch generate tickets for multiple bookings
      */
     public function batchGenerateTickets(array $bookingIds): array
     {
         $results = [];
-        
+
         foreach ($bookingIds as $bookingId) {
             try {
                 $booking = Booking::find($bookingId);
@@ -256,7 +262,7 @@ class TicketService
                 ];
             }
         }
-        
+
         return $results;
     }
 }

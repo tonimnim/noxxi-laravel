@@ -36,6 +36,7 @@ class Booking extends Model
         'user_id',
         'event_id',
         'booking_reference',
+        'quantity',
         'ticket_quantity',
         'ticket_types',
         'subtotal',
@@ -45,10 +46,13 @@ class Booking extends Model
         'status',
         'payment_status',
         'payment_method',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
         'customer_details',
         'notes',
+        'expires_at',
         'cancelled_at',
-        'cancelled_reason',
     ];
 
     /**
@@ -61,9 +65,13 @@ class Booking extends Model
         return [
             'ticket_types' => 'array',
             'customer_details' => 'array',
+            'booking_metadata' => 'array',
+            'payment_provider_data' => 'array',
+            'promo_details' => 'array',
             'subtotal' => 'decimal:2',
             'service_fee' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'expires_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
     }
@@ -192,11 +200,17 @@ class Booking extends Model
      */
     public function cancel(?string $reason = null): void
     {
-        $this->update([
+        $updates = [
             'status' => 'cancelled',
             'cancelled_at' => now(),
-            'cancelled_reason' => $reason,
-        ]);
+        ];
+
+        // Only add cancelled_reason if the column exists and reason is provided
+        if ($reason && in_array('cancelled_reason', $this->fillable)) {
+            $updates['cancelled_reason'] = $reason;
+        }
+
+        $this->update($updates);
 
         // Cancel all tickets
         $this->tickets()->update(['status' => 'cancelled']);

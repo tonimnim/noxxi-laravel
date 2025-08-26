@@ -1,180 +1,307 @@
 <template>
-  <section class="py-16 px-4 md:px-8 lg:px-12 xl:px-20 bg-gray-50">
+  <section class="py-16 px-4 md:px-8 lg:px-12 xl:px-20">
     <div class="max-w-7xl mx-auto">
       <!-- Section Header -->
-      <div class="text-center mb-12">
-        <h2 class="text-3xl md:text-4xl font-bold text-[#223338] mb-3">Popular Categories</h2>
-        <p class="text-gray-600">Browse events by category</p>
+      <div class="mb-8">
+        <h2 class="text-2xl md:text-3xl font-semibold text-[#223338]">Top experiences near you</h2>
       </div>
 
-      <!-- Categories Grid -->
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-        <a 
-          v-for="category in categories" 
-          :key="category.id"
-          :href="`/explore?category=${category.slug}`"
-          class="group relative h-40 md:h-48 rounded-xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-105"
+      <!-- Categories Carousel Container -->
+      <div class="relative">
+        <!-- Carousel -->
+        <div 
+          ref="carousel"
+          class="flex gap-4 overflow-x-auto scroll-smooth pb-4"
+          :style="{ scrollSnapType: 'x mandatory' }"
         >
-          <!-- Background Image with Overlay -->
-          <div class="absolute inset-0">
-            <img 
-              v-if="category.image"
-              :src="category.image" 
-              :alt="category.name"
-              class="w-full h-full object-cover"
-            >
-            <div 
-              v-else
-              :class="[
-                'w-full h-full',
-                category.gradient || 'bg-gradient-to-br from-[#305F64] to-[#223338]'
-              ]"
-            ></div>
-            <!-- Dark overlay for text readability -->
-            <div class="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors"></div>
-          </div>
-
-          <!-- Category Content -->
-          <div class="relative h-full flex flex-col items-center justify-center p-4 text-center">
-            <!-- Icon -->
-            <div class="mb-3">
-              <svg 
-                v-if="category.icon"
-                class="w-10 h-10 md:w-12 md:h-12 text-white"
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+          <!-- Category Cards -->
+          <a 
+            v-for="category in categories" 
+            :key="category.id"
+            :href="`/explore?category=${category.slug}`"
+            class="flex-none w-[320px] md:w-[380px] lg:w-[420px] group"
+            style="scroll-snap-align: start;"
+          >
+            <div class="relative h-[240px] md:h-[280px] rounded-2xl overflow-hidden cursor-pointer">
+              <!-- Background Image -->
+              <img 
+                v-if="category.image"
+                :src="category.image" 
+                :alt="category.name"
+                class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-110"
+                style="image-rendering: -webkit-optimize-contrast;"
+                @error="handleImageError($event, category)"
               >
-                <path 
-                  stroke-linecap="round" 
-                  stroke-linejoin="round" 
-                  stroke-width="2" 
-                  :d="category.icon"
-                ></path>
-              </svg>
-              <div v-else class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/20"></div>
+              <div 
+                v-else
+                :class="[
+                  'w-full h-full',
+                  category.gradient || 'bg-gradient-to-br from-[#305F64] to-[#223338]'
+                ]"
+              ></div>
+              
+              <!-- Gradient Overlay -->
+              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
+              
+              <!-- Play Button (for video-like appearance) -->
+              <div v-if="category.hasVideo" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-80 group-hover:opacity-100 transition-opacity">
+                <div class="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center">
+                  <svg class="w-6 h-6 text-[#223338] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
+              </div>
+              
+              <!-- Category Name -->
+              <div class="absolute bottom-0 left-0 right-0 p-6">
+                <h3 class="text-white font-bold text-xl md:text-2xl">{{ category.name }}</h3>
+              </div>
             </div>
+          </a>
+        </div>
 
-            <!-- Category Name -->
-            <h3 class="text-white font-semibold text-lg md:text-xl mb-1">{{ category.name }}</h3>
-            
-            <!-- Event Count -->
-            <p class="text-white/80 text-sm">
-              {{ category.count || 0 }} {{ category.count === 1 ? 'event' : 'events' }}
-            </p>
-          </div>
-        </a>
-      </div>
-
-      <!-- View All Categories -->
-      <div class="text-center mt-10">
-        <a 
-          href="/categories" 
-          class="inline-flex items-center gap-2 text-[#305F64] font-medium hover:opacity-80 transition-opacity"
+        <!-- Navigation Arrows -->
+        <button 
+          @click="scrollCarousel('left')"
+          class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 bg-white rounded-full shadow-lg p-3 hover:shadow-xl transition-shadow hidden md:block"
         >
-          View all categories
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5 text-[#223338]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+        
+        <button 
+          @click="scrollCarousel('right')"
+          class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 bg-white rounded-full shadow-lg p-3 hover:shadow-xl transition-shadow hidden md:block"
+        >
+          <svg class="w-5 h-5 text-[#223338]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
           </svg>
-        </a>
+        </button>
+
+        <!-- Dots Indicator -->
+        <div class="flex justify-center gap-2 mt-6">
+          <button 
+            v-for="(dot, index) in Math.ceil(categories.length / itemsPerView)" 
+            :key="index"
+            @click="scrollToPage(index)"
+            :class="[
+              'w-2 h-2 rounded-full transition-all duration-300',
+              currentPage === index ? 'bg-[#305F64] w-8' : 'bg-gray-300'
+            ]"
+          ></button>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 
-// State
+// Refs
+const carousel = ref(null)
+const currentPage = ref(0)
+const itemsPerView = ref(3)
+
+// Categories with test comedy image
 const categories = ref([
   {
     id: 1,
-    name: 'Events',
-    slug: 'events',
-    count: 245,
-    gradient: 'bg-gradient-to-br from-purple-500 to-pink-500',
-    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' // Calendar icon
+    name: 'Comedy Shows',
+    slug: 'comedy-shows',
+    image: 'https://i.postimg.cc/SnYqmn3G/comedian-2152801-640.jpg',
+    gradient: 'bg-gradient-to-br from-purple-500 to-pink-500'
   },
   {
     id: 2,
-    name: 'Sports',
-    slug: 'sports',
-    count: 182,
-    gradient: 'bg-gradient-to-br from-green-500 to-teal-500',
-    icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' // Trophy/sports icon
+    name: 'Concerts',
+    slug: 'concerts',
+    gradient: 'bg-gradient-to-br from-indigo-500 to-blue-500'
   },
   {
     id: 3,
-    name: 'Cinema',
-    slug: 'cinema',
-    count: 89,
-    gradient: 'bg-gradient-to-br from-red-500 to-orange-500',
-    icon: 'M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4' // Film icon
+    name: 'Conferences & Workshops',
+    slug: 'conferences-workshops',
+    gradient: 'bg-gradient-to-br from-teal-500 to-green-500'
   },
   {
     id: 4,
-    name: 'Experiences',
-    slug: 'experiences',
-    count: 156,
-    gradient: 'bg-gradient-to-br from-blue-500 to-purple-500',
-    icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' // Lightbulb/experience icon
+    name: 'Festivals',
+    slug: 'festivals',
+    gradient: 'bg-gradient-to-br from-orange-500 to-red-500'
   },
   {
     id: 5,
-    name: 'Concerts',
-    slug: 'concerts',
-    count: 127,
-    gradient: 'bg-gradient-to-br from-indigo-500 to-blue-500',
-    icon: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3' // Music note icon
+    name: 'Theater & Plays',
+    slug: 'theater-plays',
+    gradient: 'bg-gradient-to-br from-purple-500 to-indigo-500'
   },
   {
     id: 6,
-    name: 'Food & Drink',
-    slug: 'food-drink',
-    count: 93,
-    gradient: 'bg-gradient-to-br from-yellow-500 to-red-500',
-    icon: 'M3 3h18v18H3zM12 8v8m-4-4h8' // Food/restaurant icon (simplified)
+    name: 'Adventure',
+    slug: 'adventure',
+    gradient: 'bg-gradient-to-br from-green-500 to-teal-500'
   },
   {
     id: 7,
-    name: 'Arts & Culture',
-    slug: 'arts-culture',
-    count: 68,
-    gradient: 'bg-gradient-to-br from-pink-500 to-purple-500',
-    icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' // Image/art icon
+    name: 'Art Exhibitions',
+    slug: 'art-exhibitions',
+    gradient: 'bg-gradient-to-br from-pink-500 to-purple-500'
   },
   {
     id: 8,
-    name: 'Workshops',
-    slug: 'workshops',
-    count: 74,
-    gradient: 'bg-gradient-to-br from-teal-500 to-green-500',
-    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' // Book/learning icon
+    name: 'Nightlife',
+    slug: 'nightlife',
+    gradient: 'bg-gradient-to-br from-purple-600 to-pink-600'
+  },
+  {
+    id: 9,
+    name: 'Wellness',
+    slug: 'wellness',
+    gradient: 'bg-gradient-to-br from-teal-400 to-blue-400'
+  },
+  {
+    id: 10,
+    name: 'Basketball',
+    slug: 'basketball',
+    gradient: 'bg-gradient-to-br from-orange-500 to-red-600'
+  },
+  {
+    id: 11,
+    name: 'Combat Sports',
+    slug: 'combat',
+    gradient: 'bg-gradient-to-br from-red-600 to-gray-800'
+  },
+  {
+    id: 12,
+    name: 'Football',
+    slug: 'football',
+    gradient: 'bg-gradient-to-br from-green-600 to-green-800'
+  },
+  {
+    id: 13,
+    name: 'Motorsports',
+    slug: 'motorsports',
+    gradient: 'bg-gradient-to-br from-gray-700 to-red-600'
+  },
+  {
+    id: 14,
+    name: 'Pool',
+    slug: 'pool',
+    gradient: 'bg-gradient-to-br from-green-700 to-blue-700'
+  },
+  {
+    id: 15,
+    name: 'Rugby',
+    slug: 'rugby',
+    gradient: 'bg-gradient-to-br from-green-600 to-yellow-600'
   }
 ])
 
-// Fetch actual category counts from API
-const fetchCategoryCounts = async () => {
-  try {
-    const response = await fetch('/api/categories/popular')
-    const data = await response.json()
-    if (data.status === 'success' && data.data) {
-      // Update counts from API while keeping our UI data
-      categories.value = categories.value.map(cat => {
-        const apiCat = data.data.find(c => c.slug === cat.slug)
-        if (apiCat) {
-          cat.count = apiCat.event_count || 0
-        }
-        return cat
-      })
+// Methods
+const scrollCarousel = (direction) => {
+  if (!carousel.value) return
+  
+  const scrollAmount = carousel.value.offsetWidth
+  if (direction === 'left') {
+    carousel.value.scrollLeft -= scrollAmount
+  } else {
+    carousel.value.scrollLeft += scrollAmount
+  }
+}
+
+const scrollToPage = (pageIndex) => {
+  if (!carousel.value) return
+  
+  const scrollAmount = carousel.value.offsetWidth * pageIndex
+  carousel.value.scrollLeft = scrollAmount
+}
+
+const handleScroll = () => {
+  if (!carousel.value) return
+  
+  const scrollPosition = carousel.value.scrollLeft
+  const pageWidth = carousel.value.offsetWidth
+  currentPage.value = Math.round(scrollPosition / pageWidth)
+}
+
+const handleImageError = (event, category) => {
+  // If image fails to load, hide it and show gradient instead
+  event.target.style.display = 'none'
+  console.error(`Failed to load image for ${category.name}`)
+}
+
+const updateItemsPerView = () => {
+  const width = window.innerWidth
+  if (width < 768) {
+    itemsPerView.value = 1
+  } else if (width < 1024) {
+    itemsPerView.value = 2
+  } else {
+    itemsPerView.value = 3
+  }
+}
+
+// Auto-scroll animation
+let autoScrollInterval = null
+const startAutoScroll = () => {
+  autoScrollInterval = setInterval(() => {
+    if (!carousel.value) return
+    
+    const maxScroll = carousel.value.scrollWidth - carousel.value.offsetWidth
+    const currentScroll = carousel.value.scrollLeft
+    
+    if (currentScroll >= maxScroll - 10) {
+      // Reset to beginning
+      carousel.value.scrollLeft = 0
+    } else {
+      // Scroll to next item
+      scrollCarousel('right')
     }
-  } catch (error) {
-    console.error('Error fetching category counts:', error)
+  }, 5000) // Change slide every 5 seconds
+}
+
+const stopAutoScroll = () => {
+  if (autoScrollInterval) {
+    clearInterval(autoScrollInterval)
+    autoScrollInterval = null
   }
 }
 
 // Lifecycle
 onMounted(() => {
-  fetchCategoryCounts()
+  if (carousel.value) {
+    carousel.value.addEventListener('scroll', handleScroll)
+    carousel.value.addEventListener('mouseenter', stopAutoScroll)
+    carousel.value.addEventListener('mouseleave', startAutoScroll)
+  }
+  
+  window.addEventListener('resize', updateItemsPerView)
+  updateItemsPerView()
+  startAutoScroll()
+})
+
+onUnmounted(() => {
+  if (carousel.value) {
+    carousel.value.removeEventListener('scroll', handleScroll)
+    carousel.value.removeEventListener('mouseenter', stopAutoScroll)
+    carousel.value.removeEventListener('mouseleave', startAutoScroll)
+  }
+  
+  window.removeEventListener('resize', updateItemsPerView)
+  stopAutoScroll()
 })
 </script>
+
+<style scoped>
+/* Hide scrollbar but keep functionality */
+.overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}
+
+.overflow-x-auto {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

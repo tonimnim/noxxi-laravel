@@ -38,7 +38,7 @@ class AuthController extends Controller
      *
      * @bodyParam full_name string required The user's full name. Example: John Doe
      * @bodyParam email string required The user's email address. Must be unique. Example: john@example.com
-     * @bodyParam password string required The user's password. Min 8 characters in production. Example: SecurePass123!
+     * @bodyParam password string required The user's password. Min 4 characters. Example: Pass1234
      * @bodyParam phone_number string optional The user's phone number with country code. Example: +254712345678
      *
      * @response 201 {
@@ -75,7 +75,7 @@ class AuthController extends Controller
         $tokens = $this->authService->generateTokens($user);
 
         // Log user registration activity
-        ActivityService::logUser('registered', $user, 'New user registered: ' . $user->full_name);
+        ActivityService::logUser('registered', $user, 'New user registered: '.$user->full_name);
 
         return $this->created([
             'user' => $user,
@@ -93,7 +93,7 @@ class AuthController extends Controller
      *
      * @bodyParam full_name string required The organizer's full name. Example: Jane Smith
      * @bodyParam email string required The organizer's email address. Must be unique. Example: jane@events.com
-     * @bodyParam password string required The organizer's password. Min 8 characters in production. Example: SecurePass123!
+     * @bodyParam password string required The organizer's password. Min 4 characters. Example: Pass1234
      * @bodyParam phone_number string required The organizer's phone number with country code. Example: +254712345678
      * @bodyParam business_name string required The business/organization name. Example: Amazing Events Ltd
      * @bodyParam business_country string optional Country code. Default: KE. Example: NG
@@ -160,7 +160,7 @@ class AuthController extends Controller
             $tokens = $this->authService->generateTokens($user, 'organizer-app');
 
             // Log organizer registration activity
-            ActivityService::logOrganizer('registered', $organizer, 'New organizer registered: ' . $organizer->business_name);
+            ActivityService::logOrganizer('registered', $organizer, 'New organizer registered: '.$organizer->business_name);
 
             return $this->created([
                 'user' => $user,
@@ -240,7 +240,7 @@ class AuthController extends Controller
         $tokens = $this->authService->generateTokens($user);
 
         // Log login activity
-        ActivityService::logUser('login', $user, 'User logged in: ' . $user->full_name);
+        ActivityService::logUser('login', $user, 'User logged in: '.$user->full_name);
 
         return $this->success([
             'user' => $user,
@@ -248,6 +248,38 @@ class AuthController extends Controller
             'refresh_token' => $tokens['refresh_token'],
             'expires_at' => $tokens['expires_at'],
         ], 'Login successful');
+    }
+
+    /**
+     * Check if user is authenticated and return user data with redirect path
+     */
+    public function checkAuth(Request $request)
+    {
+        // Check if user has a valid token
+        if ($request->bearerToken()) {
+            try {
+                $user = auth('api')->user();
+                if ($user) {
+                    if ($user->role === 'organizer') {
+                        $user->load('organizer');
+                    }
+
+                    return $this->success([
+                        'authenticated' => true,
+                        'user' => $user,
+                        'redirect' => $this->getRedirectPath($user),
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Token is invalid
+            }
+        }
+
+        return $this->success([
+            'authenticated' => false,
+            'user' => null,
+            'redirect' => null,
+        ]);
     }
 
     /**
@@ -270,10 +302,10 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-        
+
         $validated = $request->validate([
             'full_name' => 'sometimes|string|max:255',
-            'phone_number' => 'sometimes|string|max:20|unique:users,phone_number,' . $user->id,
+            'phone_number' => 'sometimes|string|max:20|unique:users,phone_number,'.$user->id,
             'city' => 'sometimes|string|max:100',
             'country' => 'sometimes|string|max:100',
             'notification_preferences' => 'sometimes|array',
@@ -300,18 +332,18 @@ class AuthController extends Controller
     public function changePassword(Request $request)
     {
         $user = $request->user();
-        
+
         $validated = $request->validate([
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:8|confirmed',
+            'new_password' => 'required|string|min:4|confirmed',
         ]);
 
-        if (!Hash::check($validated['current_password'], $user->password)) {
+        if (! Hash::check($validated['current_password'], $user->password)) {
             return $this->error('Current password is incorrect', 400);
         }
 
         $user->update([
-            'password' => Hash::make($validated['new_password'])
+            'password' => Hash::make($validated['new_password']),
         ]);
 
         return $this->success(null, 'Password changed successfully');
@@ -324,7 +356,7 @@ class AuthController extends Controller
     {
         $request->user()->token()->revoke();
 
-        return $this->success(null, 'Logged out successfully');
+        return $this->success(['redirect' => '/'], 'Logged out successfully');
     }
 
     /**
@@ -460,7 +492,7 @@ class AuthController extends Controller
         return match ($user->role) {
             'admin' => '/admin',
             'organizer' => '/organizer/dashboard',
-            'user' => '/my-account',
+            'user' => '/',
             default => '/'
         };
     }

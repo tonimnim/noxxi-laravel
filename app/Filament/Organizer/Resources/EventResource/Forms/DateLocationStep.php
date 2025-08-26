@@ -2,6 +2,7 @@
 
 namespace App\Filament\Organizer\Resources\EventResource\Forms;
 
+use App\Models\City;
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
 
@@ -23,7 +24,7 @@ class DateLocationStep
                             ->minDate(now()->addHours(1))
                             ->seconds(false)
                             ->helperText('When does your listing start?'),
-                            
+
                         Forms\Components\DateTimePicker::make('end_date')
                             ->label('End Date & Time (Optional)')
                             ->native(false)
@@ -33,7 +34,7 @@ class DateLocationStep
                             ->afterOrEqual('event_date')
                             ->helperText('Leave blank for single-day listings'),
                     ]),
-                    
+
                 Forms\Components\Section::make('Venue Details')
                     ->description('Where will your listing take place?')
                     ->schema([
@@ -42,34 +43,71 @@ class DateLocationStep
                             ->placeholder('e.g., Nairobi National Theatre')
                             ->required()
                             ->maxLength(255),
-                            
+
                         Forms\Components\Textarea::make('venue_address')
                             ->label('Full Address')
                             ->placeholder('Enter the complete address')
                             ->required()
                             ->rows(2)
                             ->maxLength(500),
-                            
-                        Forms\Components\Grid::make(3)
+
+                        Forms\Components\Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('city')
+                                Forms\Components\Select::make('city_id')
+                                    ->label('City')
                                     ->required()
-                                    ->placeholder('e.g., Nairobi')
-                                    ->maxLength(100),
-                                    
+                                    ->searchable()
+                                    ->preload()
+                                    ->options(function () {
+                                        return City::active()
+                                            ->orderBy('country')
+                                            ->orderBy('name')
+                                            ->get()
+                                            ->mapWithKeys(function ($city) {
+                                                return [$city->id => $city->name.', '.$city->country];
+                                            });
+                                    })
+                                    ->helperText('Select the closest major city to your venue')
+                                    ->reactive()
+                                    ->afterStateUpdated(function ($state, callable $set) {
+                                        if ($state) {
+                                            $city = City::find($state);
+                                            if ($city) {
+                                                // Auto-fill city name for backward compatibility
+                                                $set('city', $city->name);
+                                                // Auto-fill coordinates if available
+                                                if ($city->latitude) {
+                                                    $set('latitude', $city->latitude);
+                                                }
+                                                if ($city->longitude) {
+                                                    $set('longitude', $city->longitude);
+                                                }
+                                            }
+                                        }
+                                    }),
+
+                                Forms\Components\TextInput::make('city')
+                                    ->label('City Name (Auto-filled)')
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->helperText('Auto-filled from city selection'),
+                            ]),
+
+                        Forms\Components\Grid::make(2)
+                            ->schema([
                                 Forms\Components\TextInput::make('latitude')
                                     ->numeric()
-                                    ->placeholder('Optional')
+                                    ->placeholder('Auto-filled or enter manually')
                                     ->helperText('For map display'),
-                                    
+
                                 Forms\Components\TextInput::make('longitude')
                                     ->numeric()
-                                    ->placeholder('Optional')
+                                    ->placeholder('Auto-filled or enter manually')
                                     ->helperText('For map display'),
                             ]),
                     ])
                     ->columns(1),
-                    
+
                 Forms\Components\Section::make('Additional Settings')
                     ->schema([
                         Forms\Components\TextInput::make('capacity')
@@ -79,7 +117,7 @@ class DateLocationStep
                             ->minValue(1)
                             ->default(100)
                             ->helperText('Maximum number of tickets available'),
-                            
+
                         Forms\Components\Select::make('age_restriction')
                             ->label('Age Restriction')
                             ->options([

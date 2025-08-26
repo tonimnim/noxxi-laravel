@@ -34,7 +34,6 @@ class Ticket extends Model
         'booking_id',
         'event_id',
         'ticket_code',
-        'qr_code',
         'ticket_hash',
         'ticket_type',
         'price',

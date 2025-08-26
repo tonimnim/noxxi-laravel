@@ -141,11 +141,9 @@ class AuthenticationTest extends TestCase
                 'message',
                 'data' => [
                     'user',
-                    'access_token',
-                    'token_type',
+                    'token',
                     'expires_at',
                     'refresh_token',
-                    'refresh_expires_at',
                 ],
             ]);
     }

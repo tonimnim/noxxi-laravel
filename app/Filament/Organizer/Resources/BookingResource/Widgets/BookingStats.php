@@ -28,8 +28,8 @@ class BookingStats extends BaseWidget
                 ->whereDate('event_date', $today);
         })->where('payment_status', 'paid');
 
-        // Today's revenue
-        $todayRevenue = (clone $todayBookings)->sum('total_amount');
+        // Today's revenue (organizer's portion - subtotal only)
+        $todayRevenue = (clone $todayBookings)->sum('subtotal');
         $todayCount = (clone $todayBookings)->count();
 
         // Get default currency from organizer

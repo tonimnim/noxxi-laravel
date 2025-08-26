@@ -12,7 +12,7 @@
       <div class="flex items-center justify-between h-16 md:h-20">
         <!-- Logo -->
         <div class="flex items-center lg:ml-[180px] xl:ml-[210px]">
-          <a href="/" class="logo-briski text-2xl md:text-3xl tracking-tight text-[#223338] hover:opacity-80 transition-opacity">
+          <a href="/" :class="['logo-briski text-2xl md:text-3xl tracking-tight hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
             NOXXI
           </a>
         </div>
@@ -20,16 +20,16 @@
         <!-- Center Navigation - Desktop Only -->
         <nav class="hidden lg:flex items-center justify-center absolute left-1/2 transform -translate-x-1/2">
           <div class="flex items-center gap-6 xl:gap-10">
-            <a href="/explore" class="text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity">
+            <a href="/explore" :class="['text-sm font-medium hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
               Explore
             </a>
-            <a href="/sell-tickets" class="text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity">
+            <a href="/sell-tickets" :class="['text-sm font-medium hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
               Sell tickets
             </a>
-            <a href="/enterprise" class="text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity">
+            <a href="/enterprise" :class="['text-sm font-medium hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
               Enterprise
             </a>
-            <a href="/help" class="text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity">
+            <a href="/help" :class="['text-sm font-medium hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
               Help
             </a>
           </div>
@@ -41,7 +41,7 @@
           <div class="relative hidden md:block" ref="languageDropdown">
             <button 
               @click="toggleLanguageDropdown"
-              class="text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity flex items-center gap-2"
+              :class="['text-sm font-medium hover:opacity-80 transition-opacity flex items-center gap-2', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']"
             >
               <!-- World Globe Icon -->
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,20 +84,37 @@
             </transition>
           </div>
 
-          <!-- Sign In - Hidden on small mobile -->
-          <a href="/login" class="hidden sm:block text-sm font-medium text-[#223338] hover:opacity-80 transition-opacity">
-            Sign in
-          </a>
+          <!-- Auth Section - Hidden on small mobile -->
+          <div v-if="!isAuthenticated" class="hidden sm:block">
+            <a href="/login" :class="['text-sm font-medium hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']">
+              Sign in
+            </a>
+          </div>
+          
+          <!-- Profile Icon for Logged In Users -->
+          <div v-else class="hidden sm:flex items-center gap-3">
+            <a 
+              href="/account" 
+              :class="['flex items-center gap-2 hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+              </svg>
+              <span class="text-sm font-medium">My Account</span>
+            </a>
+            <button 
+              @click="handleLogout"
+              :class="['text-sm hover:opacity-80 transition-opacity', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']"
+            >
+              Logout
+            </button>
+          </div>
 
-          <!-- Get Started Button - Responsive padding -->
-          <a href="/register" class="bg-[#305F64] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:opacity-90 transition-opacity">
-            Get started
-          </a>
 
           <!-- Mobile Menu Button -->
           <button 
             @click="showMobileMenu = !showMobileMenu"
-            class="lg:hidden p-1.5 sm:p-2 rounded-md text-[#223338] hover:opacity-80"
+            :class="['lg:hidden p-1.5 sm:p-2 rounded-md hover:opacity-80', forceWhiteText && !hasScrolled ? 'text-white' : 'text-[#223338]']"
           >
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -139,9 +156,6 @@
             <a href="/login" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
               Sign in
             </a>
-            <a href="/register" class="block w-full text-center bg-black text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-gray-800 transition-colors">
-              Get started
-            </a>
           </div>
         </div>
       </div>
@@ -152,12 +166,21 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 
+// Props
+const props = defineProps({
+  forceWhiteText: {
+    type: Boolean,
+    default: false
+  }
+})
+
 // State
 const showLanguageDropdown = ref(false)
 const showMobileMenu = ref(false)
 const languageDropdown = ref(null)
 const hasScrolled = ref(false)
 const isVisible = ref(true)
+const isAuthenticated = ref(false)
 let lastScrollY = 0
 
 const languages = [
@@ -178,7 +201,6 @@ const selectLanguage = (lang) => {
   currentLanguage.value = lang
   showLanguageDropdown.value = false
   // Here you would typically trigger i18n language change
-  console.log('Language changed to:', lang.code)
 }
 
 const handleClickOutside = (event) => {
@@ -210,17 +232,78 @@ const handleScroll = () => {
   lastScrollY = currentScrollY
 }
 
+const handleContentScroll = (event) => {
+  const { scrollY, direction } = event.detail
+  
+  // Add background when scrolled more than 100px
+  hasScrolled.value = scrollY > 100
+  
+  // Show header when scrolling up or at the top
+  if (direction === 'up' || scrollY < 10) {
+    isVisible.value = true
+  } 
+  // Hide header when scrolling down (and not near top)
+  else if (direction === 'down' && scrollY > 100) {
+    isVisible.value = false
+  }
+}
+
+// Check authentication
+const checkAuth = async () => {
+  try {
+    const response = await fetch('/auth/web/check', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      isAuthenticated.value = data.authenticated || false
+    }
+  } catch (error) {
+    isAuthenticated.value = false
+  }
+}
+
+// Handle logout
+const handleLogout = async () => {
+  try {
+    const response = await fetch('/auth/web/logout', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      window.location.href = '/'
+    }
+  } catch (error) {
+    console.error('Logout error:', error)
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll)
+  window.addEventListener('content-scroll', handleContentScroll)
   // Check initial scroll position
   handleScroll()
+  // Check authentication status
+  checkAuth()
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('content-scroll', handleContentScroll)
 })
 </script>
 

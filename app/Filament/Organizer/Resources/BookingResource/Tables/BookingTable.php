@@ -80,17 +80,106 @@ class BookingTable
                 ->toggleable(),
 
             Tables\Columns\TextColumn::make('total_amount')
-                ->label('Amount')
+                ->label('Gross Amount')
                 ->sortable()
-                ->formatStateUsing(fn (Booking $record): string => $record->currency.' '.number_format($record->total_amount, 0)
+                ->formatStateUsing(fn (Booking $record): string => $record->currency.' '.number_format($record->total_amount, 2)
                 )
-                ->description(fn (Booking $record): ?string => $record->discount_amount > 0 ?
-                    'Discount: '.$record->currency.' '.number_format($record->discount_amount, 0) : null
+                ->description('What customer paid')
+                ->color('gray')
+                ->toggleable(),
+
+            Tables\Columns\TextColumn::make('paystack_fee')
+                ->label('Processing Fee')
+                ->formatStateUsing(function (Booking $record): string {
+                    // Calculate Paystack fee (1.5% for M-Pesa, 2.9% for cards)
+                    $rate = match ($record->payment_method) {
+                        'mpesa' => 0.015,
+                        'card', 'apple' => 0.029,
+                        default => 0.015,
+                    };
+                    $fee = $record->total_amount * $rate;
+
+                    return '-'.$record->currency.' '.number_format($fee, 2);
+                })
+                ->description(fn (Booking $record): string => match ($record->payment_method) {
+                    'mpesa' => '1.5% M-Pesa',
+                    'card' => '2.9% Card',
+                    'apple' => '2.9% Apple Pay',
+                    default => 'Processing fee',
+                }
                 )
+                ->color('danger')
+                ->toggleable()
+                ->toggledHiddenByDefault(),
+
+            Tables\Columns\TextColumn::make('subtotal')
+                ->label('Your Revenue')
+                ->sortable()
+                ->formatStateUsing(function (Booking $record): string {
+                    // Revenue after Paystack fees
+                    $rate = match ($record->payment_method) {
+                        'mpesa' => 0.015,
+                        'card', 'apple' => 0.029,
+                        default => 0.015,
+                    };
+                    $paystackFee = $record->total_amount * $rate;
+                    $revenue = $record->total_amount - $paystackFee;
+
+                    return $record->currency.' '.number_format($revenue, 2);
+                })
+                ->description('After processing fees')
                 ->color(fn (Booking $record): string => $record->payment_status === 'paid' ? 'success' : 'gray'
                 )
                 ->weight('bold')
                 ->toggleable(),
+
+            Tables\Columns\TextColumn::make('commission')
+                ->label('Commission')
+                ->formatStateUsing(function (Booking $record): string {
+                    // Get commission rate for this event
+                    $commissionRate = $record->event->commission_rate ??
+                                    $record->event->organizer->commission_rate ??
+                                    10.0;
+                    $commission = $record->total_amount * ($commissionRate / 100);
+
+                    return '-'.$record->currency.' '.number_format($commission, 2);
+                })
+                ->description(function (Booking $record): string {
+                    $commissionRate = $record->event->commission_rate ??
+                                    $record->event->organizer->commission_rate ??
+                                    10.0;
+
+                    return $commissionRate.'% platform fee';
+                })
+                ->color('warning')
+                ->toggleable()
+                ->toggledHiddenByDefault(),
+
+            Tables\Columns\TextColumn::make('net_amount')
+                ->label('Net Amount')
+                ->formatStateUsing(function (Booking $record): string {
+                    // Calculate all deductions
+                    $rate = match ($record->payment_method) {
+                        'mpesa' => 0.015,
+                        'card', 'apple' => 0.029,
+                        default => 0.015,
+                    };
+                    $paystackFee = $record->total_amount * $rate;
+
+                    $commissionRate = $record->event->commission_rate ??
+                                    $record->event->organizer->commission_rate ??
+                                    10.0;
+                    $commission = $record->total_amount * ($commissionRate / 100);
+
+                    $netAmount = $record->total_amount - $paystackFee - $commission;
+
+                    return $record->currency.' '.number_format($netAmount, 2);
+                })
+                ->description('Final amount after all fees')
+                ->color('success')
+                ->weight('bold')
+                ->toggleable()
+                ->toggledHiddenByDefault(),
 
             Tables\Columns\TextColumn::make('payment_status')
                 ->label('Payment')

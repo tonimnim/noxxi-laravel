@@ -229,11 +229,21 @@ class AuthenticationService
             cache()->put($cacheKey, $code, $duration);
         }
 
-        // Dispatch async job to send the code
+        // Dispatch job to send the code
         if ($type === 'verify') {
-            SendVerificationCode::dispatch($user, $code);
+            // In development, run synchronously to ensure immediate processing
+            if (app()->environment('local', 'development')) {
+                SendVerificationCode::dispatchSync($user, $code);
+            } else {
+                SendVerificationCode::dispatch($user, $code);
+            }
         } elseif ($type === 'reset') {
-            SendPasswordResetCode::dispatch($user, $code);
+            // In development, run synchronously to ensure immediate processing
+            if (app()->environment('local', 'development')) {
+                SendPasswordResetCode::dispatchSync($user, $code);
+            } else {
+                SendPasswordResetCode::dispatch($user, $code);
+            }
         }
 
         // Log in development only for debugging

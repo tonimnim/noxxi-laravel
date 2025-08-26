@@ -19,28 +19,44 @@ class TicketTypesStep
                 static::getSalesConfigSection(),
             ]);
     }
-    
+
     protected static function getCurrencyField(): Forms\Components\Select
     {
+        // Get currencies from config
+        $currencies = config('currencies.supported', []);
+        $popular = config('currencies.popular', []);
+
+        // Reorganize with popular currencies first
+        $options = [];
+        foreach ($popular as $code) {
+            if (isset($currencies[$code])) {
+                $options[$code] = $currencies[$code];
+            }
+        }
+
+        // Add separator
+        if (! empty($options) && count($currencies) > count($options)) {
+            $options['---'] = '──────────────────────';
+        }
+
+        // Add remaining currencies
+        foreach ($currencies as $code => $name) {
+            if (! isset($options[$code])) {
+                $options[$code] = $name;
+            }
+        }
+
         return Forms\Components\Select::make('currency')
             ->label('Currency')
-            ->options([
-                'KES' => 'KES - Kenyan Shilling',
-                'NGN' => 'NGN - Nigerian Naira',
-                'ZAR' => 'ZAR - South African Rand',
-                'GHS' => 'GHS - Ghanaian Cedi',
-                'UGX' => 'UGX - Ugandan Shilling',
-                'TZS' => 'TZS - Tanzanian Shilling',
-                'EGP' => 'EGP - Egyptian Pound',
-                'USD' => 'USD - US Dollar',
-            ])
-            ->default(fn () => Auth::user()->organizer?->default_currency ?? 'KES')
+            ->options($options)
+            ->disableOptionWhen(fn (string $value): bool => $value === '---')
+            ->default(fn () => Auth::user()->organizer?->default_currency ?? config('currencies.default', 'USD'))
             ->required()
             ->searchable()
             ->reactive()
             ->helperText('Select the currency for all ticket prices');
     }
-    
+
     protected static function getTicketTypesRepeater(): Forms\Components\Repeater
     {
         return Forms\Components\Repeater::make('ticket_types')
@@ -53,14 +69,14 @@ class TicketTypesStep
                             ->placeholder('e.g., Early Bird, VIP, Regular')
                             ->required()
                             ->maxLength(50),
-                            
+
                         Forms\Components\TextInput::make('price')
                             ->label('Price')
                             ->numeric()
                             ->required()
                             ->minValue(0)
                             ->prefix(fn ($get) => $get('../../currency') ?? 'KES'),
-                            
+
                         Forms\Components\TextInput::make('quantity')
                             ->label('Quantity Available')
                             ->numeric()
@@ -68,13 +84,13 @@ class TicketTypesStep
                             ->minValue(1)
                             ->default(100),
                     ]),
-                    
+
                 Forms\Components\Textarea::make('description')
                     ->label('Description')
                     ->placeholder('What does this ticket include?')
                     ->rows(2)
                     ->maxLength(500),
-                    
+
                 Forms\Components\Grid::make(2)
                     ->schema([
                         Forms\Components\DateTimePicker::make('sale_start')
@@ -83,14 +99,14 @@ class TicketTypesStep
                             ->displayFormat('M d, Y g:i A')
                             ->default(now())
                             ->helperText('When tickets go on sale'),
-                            
+
                         Forms\Components\DateTimePicker::make('sale_end')
                             ->label('Sale End Date')
                             ->native(false)
                             ->displayFormat('M d, Y g:i A')
                             ->helperText('When ticket sales close'),
                     ]),
-                    
+
                 Forms\Components\Grid::make(3)
                     ->schema([
                         Forms\Components\TextInput::make('max_per_order')
@@ -99,12 +115,12 @@ class TicketTypesStep
                             ->minValue(1)
                             ->default(10)
                             ->helperText('Limit per transaction'),
-                            
+
                         Forms\Components\Toggle::make('transferable')
                             ->label('Transferable')
                             ->default(true)
                             ->helperText('Can be transferred'),
-                            
+
                         Forms\Components\Toggle::make('refundable')
                             ->label('Refundable')
                             ->default(false)
@@ -116,8 +132,7 @@ class TicketTypesStep
             ->reorderable()
             ->collapsible()
             ->cloneable()
-            ->itemLabel(fn (array $state): ?string => 
-                $state['name'] ?? 'New Ticket Type'
+            ->itemLabel(fn (array $state): ?string => $state['name'] ?? 'New Ticket Type'
             )
             ->columnSpanFull()
             ->required()
@@ -125,7 +140,7 @@ class TicketTypesStep
             ->maxItems(10)
             ->helperText('You must create at least one ticket type. You can add up to 10 different types.');
     }
-    
+
     protected static function getSalesConfigSection(): Forms\Components\Section
     {
         return Forms\Components\Section::make('Sales Configuration')
@@ -137,12 +152,12 @@ class TicketTypesStep
                     ->minValue(1)
                     ->default(10)
                     ->helperText('Maximum tickets in single purchase'),
-                    
+
                 Forms\Components\Toggle::make('ticket_sales_config.show_remaining_tickets')
                     ->label('Show Remaining Tickets')
                     ->default(true)
                     ->helperText('Display available ticket count to buyers'),
-                    
+
                 Forms\Components\Toggle::make('ticket_sales_config.enable_waiting_list')
                     ->label('Enable Waiting List')
                     ->default(false)

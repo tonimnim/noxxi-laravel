@@ -13,6 +13,9 @@
     
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body class="font-sans antialiased">
     <div id="app">

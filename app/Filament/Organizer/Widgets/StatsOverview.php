@@ -5,65 +5,71 @@ namespace App\Filament\Organizer\Widgets;
 use App\Models\Booking;
 use App\Models\Event;
 use App\Models\Ticket;
+use App\Models\Transaction;
+use Carbon\Carbon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class StatsOverview extends BaseWidget
 {
     protected static ?int $sort = 1;
     
+    protected static ?string $pollingInterval = '10s'; // Poll every 10 seconds for real-time updates
+
     protected function getStats(): array
     {
         $organizerId = Auth::user()->organizer?->id;
-        if (!$organizerId) {
+        $currency = Auth::user()->organizer?->default_currency ?? 'KES';
+
+        if (! $organizerId) {
             return [
-                Stat::make('Gross revenue', 'KES 0')
+                Stat::make('Gross revenue', $currency.' 0')
                     ->description('0% increase')
                     ->descriptionIcon('heroicon-m-arrow-trending-up')
                     ->color('success'),
-                    
+
                 Stat::make('Tickets sold', '0')
                     ->description('0% increase')
                     ->descriptionIcon('heroicon-m-arrow-trending-up')
                     ->color('success'),
-                    
+
                 Stat::make('Active listings', '0')
                     ->description('Currently published')
                     ->descriptionIcon('heroicon-m-calendar')
                     ->color('primary'),
-                    
-                Stat::make('Upcoming', '0')
-                    ->description('Next 7 days')
-                    ->descriptionIcon('heroicon-m-clock')
-                    ->color('warning'),
+
+                Stat::make('Total Refunds', $currency.' 0')
+                    ->description('All time')
+                    ->descriptionIcon('heroicon-m-arrow-uturn-left')
+                    ->color('danger'),
             ];
         }
         $startDate = Carbon::now()->subDays(30);
-        
-        // Gross Revenue
+
+        // Gross Revenue (subtract service fees - organizer only gets subtotal)
         $revenue = Booking::whereHas('event', function ($query) use ($organizerId) {
             $query->where('organizer_id', $organizerId);
         })
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', $startDate)
-            ->sum('total_amount');
-        
+            ->sum('subtotal');
+
         $previousRevenue = Booking::whereHas('event', function ($query) use ($organizerId) {
             $query->where('organizer_id', $organizerId);
         })
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [
                 $startDate->copy()->subDays(30),
-                $startDate
+                $startDate,
             ])
-            ->sum('total_amount');
-        
-        $revenueChange = $previousRevenue > 0 
+            ->sum('subtotal');
+
+        $revenueChange = $previousRevenue > 0
             ? round((($revenue - $previousRevenue) / $previousRevenue) * 100, 1)
             : 0;
-        
+
         // Tickets Sold
         $ticketsSold = Ticket::whereHas('event', function ($query) use ($organizerId) {
             $query->where('organizer_id', $organizerId);
@@ -71,75 +77,98 @@ class StatsOverview extends BaseWidget
             ->where('created_at', '>=', $startDate)
             ->whereIn('status', ['valid', 'used'])
             ->count();
-        
+
         $previousTickets = Ticket::whereHas('event', function ($query) use ($organizerId) {
             $query->where('organizer_id', $organizerId);
         })
             ->whereBetween('created_at', [
                 $startDate->copy()->subDays(30),
-                $startDate
+                $startDate,
             ])
             ->whereIn('status', ['valid', 'used'])
             ->count();
-        
+
         $ticketsChange = $previousTickets > 0
             ? round((($ticketsSold - $previousTickets) / $previousTickets) * 100, 1)
             : 0;
-        
+
         // Active Listings
         $activeListings = Event::where('organizer_id', $organizerId)
             ->where('status', 'published')
             ->where('event_date', '>=', Carbon::now())
             ->count();
-        
-        // Upcoming Events (Next 7 days)
-        $upcomingEvents = Event::where('organizer_id', $organizerId)
-            ->where('status', 'published')
-            ->whereBetween('event_date', [
-                Carbon::now(),
-                Carbon::now()->addDays(7)
+
+        // Total Refunds (all time)
+        $totalRefunds = Transaction::where('organizer_id', $organizerId)
+            ->where('type', Transaction::TYPE_REFUND)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->sum(DB::raw('ABS(amount)'));
+
+        // Get refunds for last 30 days for comparison
+        $recentRefunds = Transaction::where('organizer_id', $organizerId)
+            ->where('type', Transaction::TYPE_REFUND)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->where('created_at', '>=', $startDate)
+            ->sum(DB::raw('ABS(amount)'));
+
+        $previousRefunds = Transaction::where('organizer_id', $organizerId)
+            ->where('type', Transaction::TYPE_REFUND)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->whereBetween('created_at', [
+                $startDate->copy()->subDays(30),
+                $startDate,
             ])
-            ->count();
-        
+            ->sum(DB::raw('ABS(amount)'));
+
+        $refundsChange = $previousRefunds > 0
+            ? round((($recentRefunds - $previousRefunds) / $previousRefunds) * 100, 1)
+            : ($recentRefunds > 0 ? 100 : 0);
+
         return [
-            Stat::make('Gross revenue', 'KES ' . number_format($revenue, 0))
-                ->description($revenueChange >= 0 
-                    ? $revenueChange . '% increase' 
-                    : abs($revenueChange) . '% decrease')
-                ->descriptionIcon($revenueChange >= 0 
-                    ? 'heroicon-m-arrow-trending-up' 
+            Stat::make('Gross revenue', $currency.' '.number_format($revenue, 0))
+                ->description($revenueChange >= 0
+                    ? $revenueChange.'% increase'
+                    : abs($revenueChange).'% decrease')
+                ->descriptionIcon($revenueChange >= 0
+                    ? 'heroicon-m-arrow-trending-up'
                     : 'heroicon-m-arrow-trending-down')
-                ->color($revenueChange >= 0 ? 'success' : 'danger'),
-                
+                ->color($revenueChange >= 0 ? 'success' : 'danger')
+                ->chart($this->getRevenueChart()),
+
             Stat::make('Tickets sold', number_format($ticketsSold))
-                ->description($ticketsChange >= 0 
-                    ? $ticketsChange . '% increase' 
-                    : abs($ticketsChange) . '% decrease')
-                ->descriptionIcon($ticketsChange >= 0 
-                    ? 'heroicon-m-arrow-trending-up' 
+                ->description($ticketsChange >= 0
+                    ? $ticketsChange.'% increase'
+                    : abs($ticketsChange).'% decrease')
+                ->descriptionIcon($ticketsChange >= 0
+                    ? 'heroicon-m-arrow-trending-up'
                     : 'heroicon-m-arrow-trending-down')
-                ->color($ticketsChange >= 0 ? 'success' : 'danger'),
-                
+                ->color($ticketsChange >= 0 ? 'success' : 'danger')
+                ->chart($this->getTicketsChart()),
+
             Stat::make('Active listings', $activeListings)
                 ->description('Currently published')
                 ->descriptionIcon('heroicon-m-calendar')
                 ->color('primary'),
-                
-            Stat::make('Upcoming', $upcomingEvents)
-                ->description('Next 7 days')
-                ->descriptionIcon('heroicon-m-clock')
-                ->color('warning'),
+
+            Stat::make('Total Refunds', $currency.' '.number_format($totalRefunds, 0))
+                ->description($refundsChange > 0
+                    ? $refundsChange.'% increase'
+                    : ($refundsChange < 0 ? abs($refundsChange).'% decrease' : 'No change'))
+                ->descriptionIcon($refundsChange > 0
+                    ? 'heroicon-m-arrow-trending-up'
+                    : 'heroicon-m-arrow-trending-down')
+                ->color($refundsChange > 0 ? 'warning' : 'success'),
         ];
     }
-    
+
     protected function getRevenueChart(): array
     {
         $data = [];
         $organizerId = Auth::user()->organizer?->id;
-        if (!$organizerId) {
+        if (! $organizerId) {
             return $data;
         }
-        
+
         for ($i = 29; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
             $revenue = Booking::whereHas('event', function ($query) use ($organizerId) {
@@ -147,20 +176,21 @@ class StatsOverview extends BaseWidget
             })
                 ->where('payment_status', 'paid')
                 ->whereDate('created_at', $date)
-                ->sum('total_amount');
+                ->sum('subtotal');
             $data[] = $revenue;
         }
+
         return $data;
     }
-    
+
     protected function getTicketsChart(): array
     {
         $data = [];
         $organizerId = Auth::user()->organizer?->id;
-        if (!$organizerId) {
+        if (! $organizerId) {
             return $data;
         }
-        
+
         for ($i = 29; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
             $tickets = Ticket::whereHas('event', function ($query) use ($organizerId) {
@@ -171,6 +201,7 @@ class StatsOverview extends BaseWidget
                 ->count();
             $data[] = $tickets;
         }
+
         return $data;
     }
 }

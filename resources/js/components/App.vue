@@ -11,11 +11,26 @@
       <!-- Featured Events Section -->
       <FeaturedEvents />
       
-      <!-- Popular Categories Section -->
-      <PopularCategories />
+      <!-- Events Section -->
+      <EventsSection />
+      
+      <!-- Experiences Section -->
+      <ExperiencesSection />
+      
+      <!-- Sports Section -->
+      <SportsSection />
+      
+      <!-- Cinema Section -->
+      <CinemaSection />
+      
+      <!-- App Download Section -->
+      <AppDownloadSection />
       
       <!-- Additional content can go here -->
     </main>
+    
+    <!-- Footer -->
+    <AppFooter />
     
     <!-- Mobile Search Button -->
     <MobileSearchButton />
@@ -29,7 +44,12 @@ import AppDownloadButtons from './AppDownloadButtons.vue'
 import HeroCard from './HeroCard.vue'
 import MobileSearchButton from './MobileSearchButton.vue'
 import FeaturedEvents from './FeaturedEvents.vue'
-import PopularCategories from './PopularCategories.vue'
+import EventsSection from './EventsSection.vue'
+import ExperiencesSection from './ExperiencesSection.vue'
+import SportsSection from './SportsSection.vue'
+import CinemaSection from './CinemaSection.vue'
+import AppDownloadSection from './AppDownloadSection.vue'
+import AppFooter from './AppFooter.vue'
 
 // State
 const searchQuery = ref('')

@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Middleware\RedirectIfNotOrganizer;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -62,6 +63,7 @@ class OrganizerPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                RedirectIfNotOrganizer::class,
             ])
             ->authGuard('web')
             ->sidebarCollapsibleOnDesktop()
@@ -74,6 +76,12 @@ class OrganizerPanelProvider extends PanelProvider
             ->renderHook(
                 'panels::user-menu.before',
                 fn () => view('filament.organizer.partials.header-icons')
-            );
+            )
+            ->userMenuItems([
+                'profile' => \Filament\Navigation\MenuItem::make()
+                    ->label('Profile Settings')
+                    ->url('/organizer/dashboard/profile')
+                    ->icon('heroicon-o-user-circle'),
+            ]);
     }
 }

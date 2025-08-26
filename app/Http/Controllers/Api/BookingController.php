@@ -6,19 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Event;
 use App\Models\Ticket;
-use App\Services\TransactionService;
-use Illuminate\Http\Request;
+use App\Services\BookingValidationService;
+use App\Services\TicketTypeValidator;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class BookingController extends Controller
 {
-    protected TransactionService $transactionService;
+    protected TicketTypeValidator $ticketTypeValidator;
 
-    public function __construct(TransactionService $transactionService)
-    {
-        $this->transactionService = $transactionService;
+    protected BookingValidationService $bookingValidationService;
+
+    public function __construct(
+        TicketTypeValidator $ticketTypeValidator,
+        BookingValidationService $bookingValidationService
+    ) {
+        $this->ticketTypeValidator = $ticketTypeValidator;
+        $this->bookingValidationService = $bookingValidationService;
     }
 
     /**
@@ -44,105 +49,98 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'event_id' => 'required|uuid|exists:events,id',
-            'ticket_types' => 'required|array',
-            'ticket_types.*.type' => 'required|string|in:regular,vip,early_bird,group',
-            'ticket_types.*.quantity' => 'required|integer|min:1|max:10',
-            'ticket_types.*.price' => 'required|numeric|min:0',
+            'ticket_types' => 'required|array|min:1',
+            'ticket_types.*.name' => 'required|string|max:255', // Ticket type name from event config
+            'ticket_types.*.quantity' => 'required|integer|min:1|max:100',
+            // NO PRICE VALIDATION - prices come from server
             'customer_details' => 'array',
-            'customer_details.phone' => 'required_if:payment_method,mpesa|string',
-            'payment_method' => 'required|string|in:card,mpesa,crypto',
+            'customer_details.phone' => 'string|nullable',
         ]);
 
+        // Get event (without lock first, for validation)
         $event = Event::findOrFail($validated['event_id']);
 
-        // Check if event is active and not past
-        if (!$event->is_active || $event->event_date < now()) {
+        // Phase 2: Comprehensive booking validation
+        $bookingValidation = $this->bookingValidationService->validateBookingRequest(
+            $request->user(),
+            $event,
+            $validated['ticket_types']
+        );
+
+        if (! $bookingValidation['valid']) {
             return response()->json([
                 'success' => false,
-                'message' => 'This event is no longer available for booking',
+                'message' => 'Booking validation failed',
+                'errors' => $bookingValidation['errors'],
+                'warnings' => $bookingValidation['warnings'] ?? [],
             ], 400);
         }
 
-        // Calculate totals
-        $subtotal = 0;
-        $ticketQuantity = 0;
-        foreach ($validated['ticket_types'] as $ticketType) {
-            $subtotal += $ticketType['price'] * $ticketType['quantity'];
-            $ticketQuantity += $ticketType['quantity'];
-        }
+        // Use database lock to prevent race conditions
+        return $this->bookingValidationService->validateWithLocking(
+            $event,
+            $validated['ticket_types'],
+            function ($lockedEvent) use ($request, $validated) {
 
-        // Check ticket availability
-        $soldTickets = Ticket::where('event_id', $event->id)
-            ->whereIn('status', ['valid', 'used'])
-            ->count();
-        
-        if (($soldTickets + $ticketQuantity) > $event->capacity) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Not enough tickets available',
-                'available' => $event->capacity - $soldTickets,
-            ], 400);
-        }
+                // Validate and prepare tickets with server-side prices
+                $ticketValidation = $this->ticketTypeValidator->validateAndPrepareTickets(
+                    $lockedEvent,
+                    $validated['ticket_types']
+                );
 
-        $serviceFee = $subtotal * 0.03; // 3% service fee
-        $totalAmount = $subtotal + $serviceFee;
+                if (! $ticketValidation['valid']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid ticket selection',
+                        'errors' => $ticketValidation['errors'],
+                    ], 400);
+                }
 
-        DB::beginTransaction();
-        try {
-            // Create booking
-            $booking = Booking::create([
-                'user_id' => $request->user()->id,
-                'event_id' => $event->id,
-                'booking_reference' => 'BK' . strtoupper(Str::random(8)),
-                'ticket_quantity' => $ticketQuantity,
-                'ticket_types' => $validated['ticket_types'],
-                'subtotal' => $subtotal,
-                'service_fee' => $serviceFee,
-                'total_amount' => $totalAmount,
-                'currency' => 'KES',
-                'status' => 'pending',
-                'payment_status' => 'pending',
-                'customer_details' => $validated['customer_details'] ?? [],
-            ]);
+                // Use server-calculated values
+                $validatedTickets = $ticketValidation['tickets'];
+                $subtotal = $ticketValidation['subtotal'];
+                $ticketQuantity = $ticketValidation['total_quantity'];
+                $currency = $ticketValidation['currency']; // Use event's currency
 
-            // Create transaction record
-            $paymentMethod = $validated['payment_method'];
-            $paymentGateway = match($paymentMethod) {
-                'card' => 'paystack',
-                'mpesa' => 'mpesa',
-                'crypto' => 'crypto',
-                default => 'paystack',
-            };
+                // Calculate service fee based on event/organizer settings
+                $serviceFee = $this->ticketTypeValidator->calculateServiceFee($lockedEvent, $subtotal);
+                $totalAmount = $subtotal + $serviceFee;
 
-            $transaction = $this->transactionService->createTicketSale(
-                $booking,
-                $paymentGateway,
-                $paymentMethod,
-                ['customer_phone' => $validated['customer_details']['phone'] ?? null]
-            );
+                // Create booking with server-side calculated values
+                $booking = Booking::create([
+                    'user_id' => $request->user()->id,
+                    'event_id' => $lockedEvent->id,
+                    'booking_reference' => 'BK'.strtoupper(Str::random(8)),
+                    'ticket_quantity' => $ticketQuantity,
+                    'ticket_types' => $validatedTickets, // Store validated tickets with server prices
+                    'subtotal' => $subtotal,
+                    'service_fee' => $serviceFee,
+                    'total_amount' => $totalAmount,
+                    'currency' => $currency, // Use event's currency, not hardcoded
+                    'status' => 'pending',
+                    'payment_status' => 'unpaid',
+                    // Use individual customer fields instead of customer_details
+                    'customer_name' => $request->user()->full_name ?? $request->user()->name,
+                    'customer_email' => $request->user()->email,
+                    'customer_phone' => $validated['customer_details']['phone'] ?? $request->user()->phone_number ?? '',
+                    // Set expiry time for booking (30 minutes to complete payment)
+                    'expires_at' => now()->addMinutes(30),
+                ]);
 
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Booking created successfully',
-                'data' => [
-                    'booking' => $booking->load('event'),
-                    'transaction_id' => $transaction->id,
-                    'payment_method' => $paymentMethod,
-                    'amount' => $totalAmount,
-                    'currency' => 'KES',
-                ],
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create booking',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Booking created successfully',
+                    'data' => [
+                        'booking' => $booking->load('event'),
+                        'booking_id' => $booking->id,
+                        'booking_reference' => $booking->booking_reference,
+                        'amount' => $totalAmount,
+                        'currency' => $currency,
+                        'expires_at' => $booking->expires_at,
+                        'payment_options' => ['card', 'mpesa'], // Available payment methods
+                    ],
+                ], 201);
+            }); // Timeout handled in validateWithLocking
     }
 
     /**
@@ -189,7 +187,7 @@ class BookingController extends Controller
     public function tickets(Request $request, string $id): JsonResponse
     {
         $booking = $request->user()->bookings()->findOrFail($id);
-        
+
         if ($booking->status !== 'confirmed') {
             return response()->json([
                 'success' => false,

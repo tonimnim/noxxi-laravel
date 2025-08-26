@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Middleware\AdminOnly;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -54,7 +55,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Admin\Widgets\RevenueChart::class,
                 \App\Filament\Admin\Widgets\PendingActions::class,
                 \App\Filament\Admin\Widgets\LiveActivityFeed::class,
-                
+
                 // System page widgets
                 \App\Filament\Admin\Widgets\System\PlatformHealthMonitor::class,
                 \App\Filament\Admin\Widgets\System\SystemAnnouncements::class,
@@ -73,7 +74,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-                \App\Http\Middleware\AdminOnly::class,
+                AdminOnly::class,
             ])
             ->authGuard('web')
             ->sidebarCollapsibleOnDesktop()

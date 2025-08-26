@@ -1,11 +1,11 @@
 <template>
-  <section class="py-16 px-4 md:px-8 lg:px-12 xl:px-20">
+  <section v-show="isVisible" class="py-16 px-4 md:px-8 lg:px-12 xl:px-20">
     <div class="max-w-7xl mx-auto">
       <!-- Section Header -->
       <div class="flex items-center justify-between mb-8">
         <div>
-          <h2 class="text-3xl md:text-4xl font-bold text-[#223338]">Featured Events</h2>
-          <p class="text-gray-600 mt-2">Discover what's happening around you</p>
+          <h2 class="text-3xl md:text-4xl font-bold text-[#223338]">{{ sectionTitle }}</h2>
+          <p class="text-gray-600 mt-2">{{ sectionSubtitle }}</p>
         </div>
         <a href="/explore" class="hidden md:inline-flex items-center gap-2 text-[#305F64] font-medium hover:opacity-80 transition-opacity">
           View all
@@ -99,30 +99,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 // State
 const featuredEvents = ref([])
-
-// Fetch featured events
-const fetchFeaturedEvents = async () => {
-  try {
-    const response = await fetch('/api/home/featured')
-    const data = await response.json()
-    if (data.status === 'success') {
-      featuredEvents.value = data.data
-    }
-  } catch (error) {
-    console.error('Error fetching featured events:', error)
-  }
-}
+const sectionTitle = ref('Featured at Noxxi')
+const sectionSubtitle = ref('Discover what\'s happening around you')
+const isVisible = ref(true)
+const currentCategory = ref('all')
 
 // Format price
 const formatPrice = (event) => {
   if (!event.min_price || event.min_price === 0) {
     return 'Free'
   }
-  const currency = event.currency || 'KES'
+  const currency = event.currency || 'USD'
   const price = parseFloat(event.min_price).toLocaleString()
   return `${currency} ${price}`
 }
@@ -152,9 +143,89 @@ const formatDate = (dateString) => {
   })
 }
 
+// Event handlers for search functionality
+const handleCategoryFilter = (event) => {
+  const { category, visibleSections } = event.detail
+  currentCategory.value = category
+  
+  // Update title based on category
+  switch(category) {
+    case 'all':
+      sectionTitle.value = 'Featured at Noxxi'
+      sectionSubtitle.value = 'Discover what\'s happening around you'
+      isVisible.value = true
+      break
+    case 'events':
+      sectionTitle.value = 'Featured Events'
+      sectionSubtitle.value = 'Top events you don\'t want to miss'
+      isVisible.value = visibleSections.includes('featured-events')
+      break
+    case 'sports':
+      sectionTitle.value = 'Featured Sports'
+      sectionSubtitle.value = 'Live sports and athletic events'
+      isVisible.value = visibleSections.includes('featured-events')
+      break
+    case 'cinema':
+      sectionTitle.value = 'Featured Cinema'
+      sectionSubtitle.value = 'Top movies and screenings'
+      isVisible.value = visibleSections.includes('featured-events')
+      break
+    case 'experiences':
+      sectionTitle.value = 'Featured Experiences'
+      sectionSubtitle.value = 'Unique adventures and activities'
+      isVisible.value = visibleSections.includes('featured-events')
+      break
+    default:
+      sectionTitle.value = 'Featured at Noxxi'
+      sectionSubtitle.value = 'Discover what\'s happening around you'
+      isVisible.value = true
+  }
+  
+  // Fetch category-specific featured items
+  fetchFeaturedEvents(category)
+}
+
+const handleSearchResults = (event) => {
+  const { results, category, query } = event.detail
+  
+  // If there's a search query, update featured items with top results
+  if (query && results?.events && results.events.length > 0) {
+    featuredEvents.value = results.events.slice(0, 8) // Show top 8 results
+  } else if (!query) {
+    // If search is cleared, fetch default featured items
+    fetchFeaturedEvents(currentCategory.value)
+  }
+}
+
+// Modified fetch to support category filtering
+const fetchFeaturedEvents = async (category = 'all') => {
+  try {
+    const endpoint = category === 'all' 
+      ? '/api/home/featured' 
+      : `/api/home/featured?category=${category}`
+    
+    const response = await fetch(endpoint)
+    const data = await response.json()
+    if (data.status === 'success') {
+      featuredEvents.value = data.data
+    }
+  } catch (error) {
+    console.error('Error fetching featured events:', error)
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   fetchFeaturedEvents()
+  
+  // Listen for category filter events
+  window.addEventListener('filter-category', handleCategoryFilter)
+  window.addEventListener('search-results', handleSearchResults)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('filter-category', handleCategoryFilter)
+  window.removeEventListener('search-results', handleSearchResults)
 })
 </script>
 

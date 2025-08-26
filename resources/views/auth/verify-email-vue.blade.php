@@ -6,6 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Email Verification - {{ config('app.name', 'NOXXI') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body>
     <div id="app">

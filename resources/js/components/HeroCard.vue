@@ -10,16 +10,16 @@
             <h1 class="text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold text-[#223338] mb-4">
               Book Life's Best<br>Moments
             </h1>
-            <p class="text-lg lg:text-xl text-[#223338] opacity-80 mb-8">
+            <p class="text-lg lg:text-xl text-[#223338] opacity-80 mb-12">
               Discover amazing events, experiences, and adventures across the world
             </p>
-            <button class="bg-[#305F64] text-white px-6 py-3 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              Get Started
-            </button>
-            
-            <!-- App Download Buttons - Desktop -->
-            <div style="margin-top: 100px;">
-              <AppDownloadButtons />
+            <div class="flex gap-3">
+              <a href="/register" class="bg-[#305F64] text-white px-6 py-3 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+                Get Started
+              </a>
+              <a href="/register/organizer" class="border-2 border-[#223338] text-[#223338] px-6 py-3 rounded-lg text-sm font-medium hover:bg-[#223338] hover:text-white transition-all">
+                Sell with us
+              </a>
             </div>
           </div>
           
@@ -85,16 +85,16 @@
           <h1 class="text-3xl font-bold text-[#223338] mb-3">
             Book Life's Best<br>Moments
           </h1>
-          <p class="text-base text-[#223338] opacity-80 mb-6 px-2">
+          <p class="text-base text-[#223338] opacity-80 mb-8 px-2">
             Discover amazing events, experiences, and adventures across the world
           </p>
-          <button class="bg-[#305F64] text-white px-6 py-3 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity mb-6">
-            Get Started
-          </button>
-          
-          <!-- App Download Buttons - Mobile -->
-          <div class="flex justify-center">
-            <AppDownloadButtons />
+          <div class="flex gap-3 justify-center mb-6">
+            <a href="/register" class="bg-[#305F64] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+              Get Started
+            </a>
+            <a href="/register/organizer" class="border-2 border-[#223338] text-[#223338] px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#223338] hover:text-white transition-all">
+              Sell with us
+            </a>
           </div>
         </div>
       </div>
@@ -104,7 +104,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import AppDownloadButtons from './AppDownloadButtons.vue'
 import SearchBar from './SearchBar.vue'
 
 // State

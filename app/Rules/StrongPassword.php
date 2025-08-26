@@ -156,14 +156,28 @@ class StrongPassword implements ValidationRule
     }
 
     /**
+     * Create a simple version for non-financial apps
+     */
+    public static function simple(): self
+    {
+        return new self(
+            minLength: 4,
+            requireUppercase: false,
+            requireLowercase: false,
+            requireNumbers: false,
+            requireSpecialChars: false
+        );
+    }
+
+    /**
      * Create a development-friendly version with relaxed requirements
      */
     public static function development(): self
     {
         return new self(
-            minLength: 6,
+            minLength: 4,
             requireUppercase: false,
-            requireLowercase: true,
+            requireLowercase: false,
             requireNumbers: false,
             requireSpecialChars: false
         );
@@ -175,11 +189,11 @@ class StrongPassword implements ValidationRule
     public static function production(): self
     {
         return new self(
-            minLength: 12,
-            requireUppercase: true,
-            requireLowercase: true,
-            requireNumbers: true,
-            requireSpecialChars: true
+            minLength: 4,
+            requireUppercase: false,
+            requireLowercase: false,
+            requireNumbers: false,
+            requireSpecialChars: false
         );
     }
 }

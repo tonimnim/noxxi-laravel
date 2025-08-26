@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'organizer' => \App\Http\Middleware\EnsureUserIsOrganizer::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
         ]);
+
+        // Exclude webhook endpoints from CSRF protection
+        $middleware->validateCsrfTokens(except: [
+            'api/webhooks/paystack',
+            'api/webhooks/mpesa',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

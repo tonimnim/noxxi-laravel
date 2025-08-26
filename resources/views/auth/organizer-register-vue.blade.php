@@ -7,16 +7,21 @@
     
     <title>Organizer Registration - {{ config('app.name', 'NOXXI') }}</title>
     
+    @include('partials.favicon')
+    
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
     
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body class="font-sans antialiased">
     <div id="app">
-        <organizer-register-form></organizer-register-form>
+        <organizer-register></organizer-register>
     </div>
 </body>
 </html>

@@ -8,6 +8,12 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @fluxStyles
     @livewireStyles
+    
+    <!-- Favicon -->
+    @include('partials.favicon')
+    
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body>
     <flux:main>

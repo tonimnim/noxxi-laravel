@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Spatie\QueryBuilder\QueryBuilder;
 use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
 
 class EventController extends Controller
 {
@@ -24,13 +24,16 @@ class EventController extends Controller
             ->allowedSorts(['event_date', 'created_at', 'min_price', 'title'])
             ->defaultSort('-event_date')
             ->where('status', 'published')
-            ->with(['organizer:id,business_name,business_logo_url'])
+            ->with([
+                'organizer:id,business_name,business_logo_url',
+                'category:id,name,slug',
+            ])
             ->select($this->getListFields())
             ->paginate($request->per_page ?? 20);
 
         return $this->success([
             'events' => $events->items(),
-            'meta' => $this->getPaginationMeta($events)
+            'meta' => $this->getPaginationMeta($events),
         ]);
     }
 
@@ -41,14 +44,14 @@ class EventController extends Controller
     {
         $event = Event::with([
             'organizer:id,business_name,business_email,business_logo_url,business_description',
-            'category:id,name,slug'
+            'category:id,name,slug',
         ])->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return $this->notFound('Event not found');
         }
 
-        if (!$this->canViewEvent($event)) {
+        if (! $this->canViewEvent($event)) {
             return $this->forbidden('This event is not available');
         }
 
@@ -69,7 +72,7 @@ class EventController extends Controller
 
         return $this->success([
             'events' => $events->items(),
-            'meta' => $this->getPaginationMeta($events)
+            'meta' => $this->getPaginationMeta($events),
         ]);
     }
 
@@ -100,19 +103,19 @@ class EventController extends Controller
             AllowedFilter::callback('category', function ($query, $value) {
                 $query->whereHas('category', function ($q) use ($value) {
                     $q->where('slug', $value)
-                      ->orWhere('name', 'ILIKE', $value)
-                      ->orWhereHas('parent', function ($parentQuery) use ($value) {
-                        $parentQuery->where('slug', $value)
-                                  ->orWhere('name', 'ILIKE', $value);
-                      });
+                        ->orWhere('name', 'ILIKE', $value)
+                        ->orWhereHas('parent', function ($parentQuery) use ($value) {
+                            $parentQuery->where('slug', $value)
+                                ->orWhere('name', 'ILIKE', $value);
+                        });
                 });
             }),
             AllowedFilter::scope('upcoming'),
             AllowedFilter::scope('featured'),
-            AllowedFilter::callback('date_after', fn($q, $v) => $q->where('event_date', '>=', $v)),
-            AllowedFilter::callback('date_before', fn($q, $v) => $q->where('event_date', '<=', $v)),
-            AllowedFilter::callback('price_min', fn($q, $v) => $q->where('min_price', '>=', $v)),
-            AllowedFilter::callback('price_max', fn($q, $v) => $q->where('max_price', '<=', $v)),
+            AllowedFilter::callback('date_after', fn ($q, $v) => $q->where('event_date', '>=', $v)),
+            AllowedFilter::callback('date_before', fn ($q, $v) => $q->where('event_date', '<=', $v)),
+            AllowedFilter::callback('price_min', fn ($q, $v) => $q->where('min_price', '>=', $v)),
+            AllowedFilter::callback('price_max', fn ($q, $v) => $q->where('max_price', '<=', $v)),
             AllowedFilter::partial('title'),
         ];
     }
@@ -126,7 +129,7 @@ class EventController extends Controller
             'id', 'title', 'slug', 'event_date', 'end_date',
             'venue_name', 'city', 'min_price', 'max_price',
             'currency', 'cover_image_url', 'featured',
-            'capacity', 'tickets_sold', 'organizer_id', 'category_id'
+            'capacity', 'tickets_sold', 'organizer_id', 'category_id',
         ];
     }
 
@@ -192,6 +195,73 @@ class EventController extends Controller
         }
 
         $user = auth()->user();
+
         return $user && $user->id === $event->organizer->user_id;
+    }
+
+    /**
+     * Get experiences events
+     */
+    public function experiences(Request $request)
+    {
+        $events = Event::query()
+            ->whereHas('category', function ($query) {
+                $query->where('slug', 'experiences');
+            })
+            ->where('status', 'published')
+            ->where('event_date', '>', now())
+            ->with(['organizer:id,business_name,business_logo_url'])
+            ->select($this->getListFields())
+            ->orderBy('event_date', 'asc')
+            ->paginate($request->per_page ?? 12);
+
+        return $this->success([
+            'events' => $events->items(),
+            'meta' => $this->getPaginationMeta($events),
+        ]);
+    }
+
+    /**
+     * Get sports events
+     */
+    public function sports(Request $request)
+    {
+        $events = Event::query()
+            ->whereHas('category', function ($query) {
+                $query->where('slug', 'sports');
+            })
+            ->where('status', 'published')
+            ->where('event_date', '>', now())
+            ->with(['organizer:id,business_name,business_logo_url'])
+            ->select($this->getListFields())
+            ->orderBy('event_date', 'asc')
+            ->paginate($request->per_page ?? 12);
+
+        return $this->success([
+            'events' => $events->items(),
+            'meta' => $this->getPaginationMeta($events),
+        ]);
+    }
+
+    /**
+     * Get cinema/movie events
+     */
+    public function cinema(Request $request)
+    {
+        $events = Event::query()
+            ->whereHas('category', function ($query) {
+                $query->where('slug', 'cinema');
+            })
+            ->where('status', 'published')
+            ->where('event_date', '>', now())
+            ->with(['organizer:id,business_name,business_logo_url'])
+            ->select($this->getListFields())
+            ->orderBy('event_date', 'asc')
+            ->paginate($request->per_page ?? 12);
+
+        return $this->success([
+            'events' => $events->items(),
+            'meta' => $this->getPaginationMeta($events),
+        ]);
     }
 }

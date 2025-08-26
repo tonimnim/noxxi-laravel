@@ -29,3 +29,22 @@ Schedule::call(function () {
 Schedule::job(new \App\Jobs\AggregateGeographicData())
     ->everyThirtyMinutes()
     ->withoutOverlapping();
+
+// Payout Monitoring and Reconciliation
+// Monitor pending payouts twice daily - alerts admins of urgent approvals needed
+Schedule::command('payouts:monitor-pending')
+    ->twiceDaily(9, 15)  // Run at 9 AM and 3 PM
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Reconcile payouts daily - checks status with gateway and detects stuck payouts
+Schedule::command('payouts:reconcile')
+    ->dailyAt('02:00')  // Run at 2 AM
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Clean up expired bookings that were never paid
+Schedule::command('bookings:cleanup-expired')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();

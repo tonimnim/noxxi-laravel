@@ -14,6 +14,12 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+    
+    <!-- Favicon -->
+    @include('partials.favicon')
+    
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body class="font-sans antialiased">
     <div class="min-h-screen bg-gray-50">

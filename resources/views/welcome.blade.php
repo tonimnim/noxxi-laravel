@@ -7,6 +7,8 @@
 
     <title>Noxxi - Your Gateway to Amazing Events Across Africa</title>
     
+    @include('partials.favicon')
+    
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />

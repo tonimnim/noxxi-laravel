@@ -53,6 +53,10 @@ class Organizer extends Model
         'webhook_secret',
         'webhook_events',
         'commission_rate',
+        'absorb_payout_fees',
+        'payout_method',
+        'mpesa_number',
+        'bank_details',
         'settlement_period_days',
         'auto_approve_events',
         'is_active',
@@ -63,6 +67,13 @@ class Organizer extends Model
         'metadata',
         'approved_at',
         'approved_by',
+        // Premium status fields
+        'status',
+        'priority_support',
+        'auto_featured_listings',
+        'monthly_volume',
+        'total_commission_paid',
+        'premium_since',
     ];
 
     /**
@@ -86,15 +97,22 @@ class Organizer extends Model
             'payment_methods' => 'array',
             'total_revenue' => 'array',
             'webhook_events' => 'array',
+            'bank_details' => 'array',
             'metadata' => 'array',
             'rating' => 'decimal:2',
             'commission_rate' => 'decimal:2',
+            'monthly_volume' => 'decimal:2',
+            'total_commission_paid' => 'decimal:2',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
             'is_verified' => 'boolean',
+            'absorb_payout_fees' => 'boolean',
             'auto_approve_events' => 'boolean',
+            'priority_support' => 'boolean',
+            'auto_featured_listings' => 'boolean',
             'approved_at' => 'datetime',
             'verified_at' => 'datetime',
+            'premium_since' => 'datetime',
         ];
     }
 

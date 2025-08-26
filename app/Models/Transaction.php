@@ -40,6 +40,10 @@ class Transaction extends Model
         'currency',
         'commission_amount',
         'gateway_fee',
+        'payment_processing_fee',
+        'paystack_fee',
+        'platform_commission',
+        'payout_fee',
         'net_amount',
         'payment_gateway',
         'payment_method',
@@ -74,30 +78,43 @@ class Transaction extends Model
      * Transaction types.
      */
     const TYPE_TICKET_SALE = 'ticket_sale';
+
     const TYPE_REFUND = 'refund';
+
     const TYPE_PAYOUT = 'payout';
+
     const TYPE_COMMISSION = 'commission';
+
     const TYPE_FEE = 'fee';
+
     const TYPE_WITHDRAWAL = 'withdrawal';
 
     /**
      * Payment gateways.
      */
     const GATEWAY_PAYSTACK = 'paystack';
+
     const GATEWAY_MPESA = 'mpesa';
-    const GATEWAY_CRYPTO = 'crypto';
+
     const GATEWAY_BANK = 'bank_transfer';
+
     const GATEWAY_CASH = 'cash';
+
     const GATEWAY_FREE = 'free';
 
     /**
      * Transaction statuses.
      */
     const STATUS_PENDING = 'pending';
+
     const STATUS_PROCESSING = 'processing';
+
     const STATUS_COMPLETED = 'completed';
+
     const STATUS_FAILED = 'failed';
+
     const STATUS_CANCELLED = 'cancelled';
+
     const STATUS_REVERSED = 'reversed';
 
     /**
@@ -130,22 +147,22 @@ class Transaction extends Model
     public function calculateNetAmount(): float
     {
         $net = $this->amount;
-        
+
         if ($this->commission_amount) {
             $net -= $this->commission_amount;
         }
-        
+
         if ($this->gateway_fee) {
             $net -= $this->gateway_fee;
         }
-        
+
         return $net;
     }
 
     /**
      * Mark transaction as completed.
      */
-    public function markAsCompleted(string $gatewayReference = null): void
+    public function markAsCompleted(?string $gatewayReference = null): void
     {
         $this->update([
             'status' => self::STATUS_COMPLETED,
@@ -201,7 +218,7 @@ class Transaction extends Model
         if ($this->payment_gateway !== self::GATEWAY_MPESA) {
             return [];
         }
-        
+
         return [
             'receipt_number' => $this->metadata['mpesa_receipt_number'] ?? null,
             'phone_number' => $this->metadata['mpesa_phone_number'] ?? null,
@@ -217,29 +234,12 @@ class Transaction extends Model
         if ($this->payment_gateway !== self::GATEWAY_PAYSTACK) {
             return [];
         }
-        
+
         return [
             'reference' => $this->gateway_reference,
             'card_last4' => $this->metadata['card_last4'] ?? null,
             'card_type' => $this->metadata['card_type'] ?? null,
             'bank' => $this->metadata['bank'] ?? null,
-        ];
-    }
-
-    /**
-     * Get crypto placeholder data from metadata.
-     */
-    public function getCryptoData(): array
-    {
-        if ($this->payment_gateway !== self::GATEWAY_CRYPTO) {
-            return [];
-        }
-        
-        return [
-            'wallet_address' => $this->metadata['wallet_address'] ?? null,
-            'token_amount' => $this->metadata['token_amount'] ?? null,
-            'blockchain_tx_hash' => $this->metadata['blockchain_tx_hash'] ?? null,
-            'token_symbol' => $this->metadata['token_symbol'] ?? 'NOXXI',
         ];
     }
 
@@ -280,7 +280,7 @@ class Transaction extends Model
      */
     public function getFormattedAmountAttribute(): string
     {
-        return $this->currency . ' ' . number_format($this->amount, 2);
+        return $this->currency.' '.number_format($this->amount, 2);
     }
 
     /**
@@ -288,7 +288,7 @@ class Transaction extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             self::STATUS_PENDING => 'Pending',
             self::STATUS_PROCESSING => 'Processing',
             self::STATUS_COMPLETED => 'Completed',
@@ -304,7 +304,7 @@ class Transaction extends Model
      */
     public function getGatewayLabelAttribute(): string
     {
-        return match($this->payment_gateway) {
+        return match ($this->payment_gateway) {
             self::GATEWAY_PAYSTACK => 'Paystack',
             self::GATEWAY_MPESA => 'M-Pesa',
             self::GATEWAY_CRYPTO => 'Cryptocurrency',

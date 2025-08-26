@@ -9,12 +9,40 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+// Listing (Event) Routes - Vue app handles these
+Route::get('/listings/{identifier}', [App\Http\Controllers\Web\ListingController::class, 'show'])->name('listings.show');
+Route::get('/checkout/{eventId}', function ($eventId) {
+    return view('checkout', ['eventId' => $eventId]);
+})->name('checkout');
+Route::get('/booking/confirmation/{bookingId}', function ($bookingId) {
+    return view('booking-confirmation', ['bookingId' => $bookingId]);
+})->name('booking.confirmation')->middleware('auth');
+
+// User Account Page
+Route::get('/account', [App\Http\Controllers\Web\AccountController::class, 'index'])
+    ->name('account')
+    ->middleware('auth');
+
+// User Tickets API (for session-based auth)
+Route::middleware('auth')->prefix('user')->group(function () {
+    Route::get('/tickets/upcoming', [\App\Http\Controllers\Web\UserTicketController::class, 'upcoming']);
+    Route::get('/tickets/past', [\App\Http\Controllers\Web\UserTicketController::class, 'past']);
+    Route::get('/tickets/{id}', [\App\Http\Controllers\Web\UserTicketController::class, 'show']);
+    
+    // Secure QR code generation (on-demand, never stored)
+    Route::get('/tickets/{id}/qr', [\App\Http\Controllers\Web\SecureQrController::class, 'generateQr'])
+        ->name('user.ticket.qr')
+        ->middleware('throttle:20,1'); // 20 requests per minute
+});
+
 // Vue Example Route
 Route::get('/vue-example', function () {
     return view('vue-example');
 })->name('vue.example');
 
 // Authentication Routes - Will be handled by Vue
+
+// User Authentication
 Route::get('/login', function () {
     return view('auth.login-vue');
 })->name('login');
@@ -23,12 +51,40 @@ Route::get('/register', function () {
     return view('auth.register-vue');
 })->name('register');
 
+// Organizer Authentication
+Route::get('/login/organizer', function () {
+    return view('auth.organizer-login-vue');
+})->name('login.organizer');
+
 Route::get('/register/organizer', function () {
     return view('auth.organizer-register-vue');
 })->name('register.organizer');
 
-// Web-based authentication routes (for session-based auth)
-Route::post('/auth/web/login', [App\Http\Controllers\Api\AuthController::class, 'login'])->name('auth.web.login');
+// Web Booking and Payment Routes (session-based)
+Route::middleware('auth:web')->group(function () {
+    Route::post('/web/bookings', [App\Http\Controllers\Web\BookingController::class, 'store'])->name('web.bookings.store');
+    Route::get('/web/bookings/{id}', [App\Http\Controllers\Web\BookingController::class, 'show'])->name('web.bookings.show');
+    Route::post('/web/payments/paystack/initialize', [App\Http\Controllers\Web\PaymentController::class, 'initializePaystack'])->name('web.payments.paystack');
+});
+
+// Payment callback (doesn't require auth as user comes from Paystack)
+Route::get('/payment/callback', [App\Http\Controllers\Web\PaymentController::class, 'handleCallback'])->name('payment.callback');
+
+// Web Authentication Routes (session-based)
+Route::prefix('auth/web')->group(function () {
+    Route::post('/login', [App\Http\Controllers\Auth\WebAuthController::class, 'login'])->name('auth.web.login');
+    Route::post('/register', [App\Http\Controllers\Auth\WebAuthController::class, 'register'])->name('auth.web.register');
+    Route::post('/register-organizer', [App\Http\Controllers\Auth\WebAuthController::class, 'registerOrganizer'])->name('auth.web.register.organizer');
+    Route::get('/check', [App\Http\Controllers\Auth\WebAuthController::class, 'check'])->name('auth.web.check');
+
+    // Protected routes (require authentication)
+    Route::middleware('auth:web')->group(function () {
+        Route::get('/user', [App\Http\Controllers\Auth\WebAuthController::class, 'getUser'])->name('auth.web.user');
+        Route::post('/verify-email', [App\Http\Controllers\Auth\WebAuthController::class, 'verifyEmail'])->name('auth.web.verify');
+        Route::post('/resend-verification', [App\Http\Controllers\Auth\WebAuthController::class, 'resendVerification'])->name('auth.web.resend');
+        Route::post('/logout', [App\Http\Controllers\Auth\WebAuthController::class, 'logout'])->name('auth.web.logout');
+    });
+});
 
 // Logout route
 Route::post('/logout', function (Request $request) {
@@ -92,9 +148,17 @@ Route::get('/auth/verified-login', function (Request $request) {
     $redirectPath = match ($user->role) {
         'admin' => '/admin',
         'organizer' => '/organizer/dashboard',
-        'user' => '/user',
+        'user' => '/',
         default => '/'
     };
 
     return redirect($redirectPath)->with('success', 'Email verified successfully!');
 })->name('auth.verified.login');
+
+// Organizer Payout Receipt Routes
+Route::middleware('auth:web')->prefix('organizer')->group(function () {
+    Route::get('/payout/{id}/receipt', [App\Http\Controllers\Organizer\PayoutReceiptController::class, 'view'])
+        ->name('organizer.payout.receipt');
+    Route::get('/payout/{id}/receipt/download', [App\Http\Controllers\Organizer\PayoutReceiptController::class, 'download'])
+        ->name('organizer.payout.receipt.download');
+});

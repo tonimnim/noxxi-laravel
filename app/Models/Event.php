@@ -44,6 +44,7 @@ class Event extends Model
         'latitude',
         'longitude',
         'city',
+        'city_id',
         'event_date',
         'end_date',
         'ticket_types',
@@ -60,6 +61,8 @@ class Event extends Model
         'media',
         'tags',
         'status',
+        'commission_rate',
+        'commission_type',
         'draft_data',
         'draft_saved_at',
         'featured',
@@ -135,23 +138,23 @@ class Event extends Model
         static::creating(function ($event) {
             if (empty($event->slug)) {
                 $event->slug = Str::slug($event->title);
-                
+
                 // Ensure unique slug
-                $count = static::where('slug', 'like', $event->slug . '%')->count();
+                $count = static::where('slug', 'like', $event->slug.'%')->count();
                 if ($count > 0) {
-                    $event->slug = $event->slug . '-' . ($count + 1);
+                    $event->slug = $event->slug.'-'.($count + 1);
                 }
             }
-            
+
             // Set default currency from organizer
             if (empty($event->currency) && $event->organizer) {
-                $event->currency = $event->organizer->default_currency ?? 'KES';
+                $event->currency = $event->organizer->default_currency ?? config('currencies.default', 'USD');
             }
         });
 
         static::updating(function ($event) {
             // Update published_at when status changes to published
-            if ($event->isDirty('status') && $event->status === 'published' && !$event->published_at) {
+            if ($event->isDirty('status') && $event->status === 'published' && ! $event->published_at) {
                 $event->published_at = now();
             }
         });
@@ -174,13 +177,21 @@ class Event extends Model
     }
 
     /**
+     * Get the city of the event.
+     */
+    public function cityRelation(): BelongsTo
+    {
+        return $this->belongsTo(City::class, 'city_id');
+    }
+
+    /**
      * Get the bookings for the event.
      */
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
     }
-    
+
     /**
      * Get paid bookings for revenue calculation
      */
@@ -227,7 +238,8 @@ class Event extends Model
     public function isHappeningNow(): bool
     {
         $now = now();
-        return $this->event_date->lte($now) && 
+
+        return $this->event_date->lte($now) &&
                ($this->end_date ? $this->end_date->gte($now) : $this->event_date->addDay()->gte($now));
     }
 
@@ -246,7 +258,7 @@ class Event extends Model
     {
         return max(0, $this->capacity - $this->tickets_sold);
     }
-    
+
     /**
      * Get total revenue attribute
      */
@@ -255,6 +267,7 @@ class Event extends Model
         if ($this->relationLoaded('paidBookings')) {
             return $this->paidBookings->sum('total_amount');
         }
+
         return $this->paidBookings()->sum('total_amount');
     }
 
@@ -263,7 +276,7 @@ class Event extends Model
      */
     public function getTicketType(string $typeName): ?array
     {
-        if (!is_array($this->ticket_types)) {
+        if (! is_array($this->ticket_types)) {
             return null;
         }
 
@@ -282,7 +295,7 @@ class Event extends Model
     public function incrementTicketsSold(int $count = 1): void
     {
         $this->increment('tickets_sold', $count);
-        
+
         // Update organizer stats
         if ($this->organizer) {
             $this->organizer->increment('total_tickets_sold', $count);
@@ -319,8 +332,8 @@ class Event extends Model
     public function scopeUpcoming($query)
     {
         return $query->where('event_date', '>', now())
-                     ->where('status', 'published')
-                     ->orderBy('event_date');
+            ->where('status', 'published')
+            ->orderBy('event_date');
     }
 
     /**
@@ -329,10 +342,10 @@ class Event extends Model
     public function scopeFeatured($query)
     {
         return $query->where('featured', true)
-                     ->where(function ($q) {
-                         $q->whereNull('featured_until')
-                           ->orWhere('featured_until', '>', now());
-                     });
+            ->where(function ($q) {
+                $q->whereNull('featured_until')
+                    ->orWhere('featured_until', '>', now());
+            });
     }
 
     /**

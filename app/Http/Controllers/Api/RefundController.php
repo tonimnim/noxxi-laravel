@@ -3,13 +3,21 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\RefundRequest;
 use App\Models\Booking;
-use Illuminate\Http\Request;
+use App\Models\RefundRequest;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class RefundController extends Controller
 {
+    protected NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     /**
      * Get user's refund requests.
      */
@@ -44,7 +52,7 @@ class RefundController extends Controller
             ->firstOrFail();
 
         // Check if booking is eligible for refund
-        if (!in_array($booking->status, ['confirmed', 'completed'])) {
+        if (! in_array($booking->status, ['confirmed', 'completed'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'This booking is not eligible for refund',
@@ -74,7 +82,7 @@ class RefundController extends Controller
         // Check event refund policy (e.g., no refunds 24 hours before event)
         $event = $booking->event;
         $hoursUntilEvent = now()->diffInHours($event->event_date, false);
-        
+
         if ($hoursUntilEvent <= 24 && $hoursUntilEvent >= 0) {
             return response()->json([
                 'success' => false,
@@ -92,6 +100,9 @@ class RefundController extends Controller
             'status' => 'pending',
             'customer_message' => $validated['customer_message'] ?? null,
         ]);
+
+        // Send notification to organizer
+        $this->notificationService->sendRefundRequested($refundRequest);
 
         return response()->json([
             'success' => true,
@@ -126,7 +137,7 @@ class RefundController extends Controller
             ->firstOrFail();
 
         // Check if refund can be cancelled
-        if (!in_array($refund->status, ['pending', 'reviewing'])) {
+        if (! in_array($refund->status, ['pending', 'reviewing'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'This refund request cannot be cancelled',
@@ -155,7 +166,7 @@ class RefundController extends Controller
         $reasons = [];
 
         // Check booking status
-        if (!in_array($booking->status, ['confirmed', 'completed'])) {
+        if (! in_array($booking->status, ['confirmed', 'completed'])) {
             $eligible = false;
             $reasons[] = 'Booking is not confirmed';
         }

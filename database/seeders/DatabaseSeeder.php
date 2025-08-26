@@ -16,6 +16,12 @@ class DatabaseSeeder extends Seeder
         // Seed admin users first
         $this->call(AdminSeeder::class);
         
+        // Seed event categories
+        $this->call(EventCategorySeeder::class);
+        
+        // Seed African cities
+        $this->call(AfricanCitiesSeeder::class);
+        
         // Create test user
         User::factory()->create([
             'full_name' => 'Test User',

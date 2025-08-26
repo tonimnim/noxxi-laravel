@@ -50,16 +50,6 @@ class EventCategorySeeder extends Seeder
                 'is_featured' => true,
                 'parent_id' => null,
             ],
-            [
-                'name' => 'Stays',
-                'slug' => 'stays',
-                'color_hex' => '#9C27B0',
-                'display_order' => 5,
-                'is_active' => true,
-                'is_featured' => true,
-                'parent_id' => null,
-                'description' => 'Accommodation and lodging options',
-            ],
         ];
 
         // Create parent categories first
@@ -103,7 +93,7 @@ class EventCategorySeeder extends Seeder
                 'parent_slug' => 'events',
                 'display_order' => 5,
             ],
-            
+
             // Sports subcategories (simplified to 6 key sports)
             [
                 'name' => 'Football',
@@ -141,9 +131,9 @@ class EventCategorySeeder extends Seeder
                 'parent_slug' => 'sports',
                 'display_order' => 6,
             ],
-            
+
             // Cinema has no subcategories
-            
+
             // Experiences subcategories (simplified to 4 only)
             [
                 'name' => 'Nightlife',
@@ -169,26 +159,12 @@ class EventCategorySeeder extends Seeder
                 'parent_slug' => 'experiences',
                 'display_order' => 4,
             ],
-            
-            // Stays subcategories
-            [
-                'name' => 'Airbnb',
-                'slug' => 'airbnb',
-                'parent_slug' => 'stays',
-                'display_order' => 1,
-            ],
-            [
-                'name' => 'Resorts',
-                'slug' => 'resorts',
-                'parent_slug' => 'stays',
-                'display_order' => 2,
-            ],
         ];
 
         // Create subcategories
         foreach ($subcategories as $subcategory) {
             $parent = EventCategory::where('slug', $subcategory['parent_slug'])->first();
-            
+
             if ($parent) {
                 EventCategory::firstOrCreate(
                     ['slug' => $subcategory['slug']],

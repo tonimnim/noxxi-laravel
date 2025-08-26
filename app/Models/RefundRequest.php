@@ -72,10 +72,15 @@ class RefundRequest extends Model
      * Refund request statuses.
      */
     const STATUS_PENDING = 'pending';
+
     const STATUS_REVIEWING = 'reviewing';
+
     const STATUS_APPROVED = 'approved';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_PROCESSED = 'processed';
+
     const STATUS_CANCELLED = 'cancelled';
 
     /**
@@ -165,7 +170,7 @@ class RefundRequest extends Model
     /**
      * Approve the refund request.
      */
-    public function approve(User $admin, float $approvedAmount = null, string $notes = null): void
+    public function approve(User $admin, ?float $approvedAmount = null, ?string $notes = null): void
     {
         $this->update([
             'status' => self::STATUS_APPROVED,
@@ -174,12 +179,19 @@ class RefundRequest extends Model
             'review_notes' => $notes,
             'approved_at' => now(),
         ]);
+
+        // Send notification to customer
+        try {
+            app(\App\Services\NotificationService::class)->sendRefundApproved($this);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send refund approved notification', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
      * Reject the refund request.
      */
-    public function reject(User $admin, string $reason, string $customerResponse = null): void
+    public function reject(User $admin, string $reason, ?string $customerResponse = null): void
     {
         $this->update([
             'status' => self::STATUS_REJECTED,
@@ -188,12 +200,19 @@ class RefundRequest extends Model
             'admin_response' => $customerResponse,
             'rejected_at' => now(),
         ]);
+
+        // Send notification to customer
+        try {
+            app(\App\Services\NotificationService::class)->sendRefundRejected($this);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send refund rejected notification', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
      * Process the approved refund.
      */
-    public function processRefund(Transaction $refundTransaction, User $admin = null): void
+    public function processRefund(Transaction $refundTransaction, ?User $admin = null): void
     {
         $this->update([
             'status' => self::STATUS_PROCESSED,
@@ -218,7 +237,7 @@ class RefundRequest extends Model
      */
     public function getFormattedRequestedAmountAttribute(): string
     {
-        return $this->currency . ' ' . number_format($this->requested_amount, 2);
+        return $this->currency.' '.number_format($this->requested_amount, 2);
     }
 
     /**
@@ -226,10 +245,11 @@ class RefundRequest extends Model
      */
     public function getFormattedApprovedAmountAttribute(): string
     {
-        if (!$this->approved_amount) {
+        if (! $this->approved_amount) {
             return '-';
         }
-        return $this->currency . ' ' . number_format($this->approved_amount, 2);
+
+        return $this->currency.' '.number_format($this->approved_amount, 2);
     }
 
     /**

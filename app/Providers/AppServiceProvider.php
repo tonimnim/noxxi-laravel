@@ -2,15 +2,17 @@
 
 namespace App\Providers;
 
+use App\Channels\SmsChannel;
+use App\Http\Responses\LogoutResponse;
 use App\Listeners\LogAuthenticationActivity;
+use Filament\Http\Responses\Auth\Contracts\LogoutResponse as LogoutResponseContract;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
-use Illuminate\Support\Facades\Notification;
-use App\Channels\SmsChannel;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         Passport::ignoreRoutes();
+
+        // Bind custom logout response for all Filament panels
+        $this->app->bind(LogoutResponseContract::class, LogoutResponse::class);
     }
 
     /**
@@ -39,10 +44,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Register event subscribers
         Event::subscribe(LogAuthenticationActivity::class);
-        
+
         // Register custom notification channel for SMS
         Notification::extend('sms', function ($app) {
-            return new SmsChannel();
+            return new SmsChannel;
         });
     }
 

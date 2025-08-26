@@ -53,25 +53,31 @@ class SendVerificationCode implements ShouldQueue
     public function handle(): void
     {
         try {
-            // In production, send actual email
-            if (app()->environment('production')) {
-                // Send email using Mail facade
-                Mail::raw(
-                    "Your verification code is: {$this->code}\n\nThis code will expire in 10 minutes.",
-                    function ($message) {
-                        $message->to($this->user->email)
-                            ->subject('Noxxi - Email Verification Code');
-                    }
-                );
-
-                Log::info('Verification email sent', [
-                    'user_id' => $this->user->id,
-                    'email' => $this->user->email,
-                ]);
-            } else {
-                // In development, log the code
-                Log::info("Email verification code for {$this->user->email}: {$this->code}");
+            // Always log in development for debugging
+            if (! app()->environment('production')) {
+                Log::channel('single')->info('===============================================');
+                Log::channel('single')->info('EMAIL VERIFICATION CODE');
+                Log::channel('single')->info("Email: {$this->user->email}");
+                Log::channel('single')->info("Code: {$this->code}");
+                Log::channel('single')->info('Valid for: 10 minutes');
+                Log::channel('single')->info('===============================================');
             }
+
+            // Send actual email (will go to log driver in local)
+            Mail::raw(
+                "Your Noxxi verification code is: {$this->code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, please ignore this email.",
+                function ($message) {
+                    $message->to($this->user->email)
+                        ->subject('Noxxi - Email Verification Code');
+                }
+            );
+
+            Log::info('Verification email sent', [
+                'user_id' => $this->user->id,
+                'email' => $this->user->email,
+                'environment' => app()->environment(),
+                'mail_driver' => config('mail.default'),
+            ]);
 
             // If phone number is available, send SMS too (for African markets)
             if ($this->user->phone_number && $this->shouldSendSMS()) {

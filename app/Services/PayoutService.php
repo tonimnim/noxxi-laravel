@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Organizer;
 use App\Models\Payout;
+use App\Models\RefundRequest;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -24,15 +25,16 @@ class PayoutService
             ->where('period_start', $periodStart->format('Y-m-d'))
             ->where('period_end', $periodEnd->format('Y-m-d'))
             ->first();
-        
+
         if ($existingPayout) {
             Log::warning('Payout already exists for period', [
                 'organizer_id' => $organizer->id,
-                'period' => $periodStart->format('Y-m-d') . ' to ' . $periodEnd->format('Y-m-d'),
+                'period' => $periodStart->format('Y-m-d').' to '.$periodEnd->format('Y-m-d'),
             ]);
+
             return null;
         }
-        
+
         // Get all completed ticket sales for the period
         $transactions = Transaction::where('organizer_id', $organizer->id)
             ->where('type', Transaction::TYPE_TICKET_SALE)
@@ -40,54 +42,72 @@ class PayoutService
             ->whereBetween('processed_at', [$periodStart, $periodEnd->endOfDay()])
             ->whereNotIn('id', function ($query) {
                 // Exclude transactions already included in other payouts
-                $query->select(DB::raw("jsonb_array_elements_text(transaction_ids)::uuid"))
+                $query->select(DB::raw('jsonb_array_elements_text(transaction_ids)::uuid'))
                     ->from('payouts')
                     ->whereNotNull('transaction_ids');
             })
             ->get();
-        
+
         if ($transactions->isEmpty()) {
             Log::info('No transactions found for payout', [
                 'organizer_id' => $organizer->id,
-                'period' => $periodStart->format('Y-m-d') . ' to ' . $periodEnd->format('Y-m-d'),
+                'period' => $periodStart->format('Y-m-d').' to '.$periodEnd->format('Y-m-d'),
             ]);
+
             return null;
         }
-        
+
         // Calculate totals
         $grossAmount = $transactions->sum('amount');
         $commissionDeducted = $transactions->sum('commission_amount');
         $feesDeducted = $transactions->sum('gateway_fee');
         $netAmount = $transactions->sum('net_amount');
-        
+
         // Account for refunds in the period
         $refunds = Transaction::where('organizer_id', $organizer->id)
             ->where('type', Transaction::TYPE_REFUND)
             ->where('status', Transaction::STATUS_COMPLETED)
             ->whereBetween('processed_at', [$periodStart, $periodEnd->endOfDay()])
+            ->whereNotIn('id', function ($query) {
+                // Exclude refund transactions already included in other payouts
+                $query->select(DB::raw('jsonb_array_elements_text(transaction_ids)::uuid'))
+                    ->from('payouts')
+                    ->whereNotNull('transaction_ids');
+            })
             ->get();
-        
+
         if ($refunds->isNotEmpty()) {
+            // Refund amounts are typically negative, so we use abs to get positive values
             $refundAmount = abs($refunds->sum('amount'));
             $refundCommission = abs($refunds->sum('commission_amount'));
             $refundFees = abs($refunds->sum('gateway_fee'));
             $refundNet = abs($refunds->sum('net_amount'));
-            
+
+            // Deduct refunds from the payout amounts
             $grossAmount -= $refundAmount;
             $commissionDeducted -= $refundCommission;
             $feesDeducted -= $refundFees;
             $netAmount -= $refundNet;
+
+            Log::info('Refunds deducted from payout', [
+                'organizer_id' => $organizer->id,
+                'refund_count' => $refunds->count(),
+                'refund_amount' => $refundAmount,
+                'refund_commission' => $refundCommission,
+                'net_refund' => $refundNet,
+            ]);
         }
-        
+
         // Don't create payout if net amount is negative or zero
         if ($netAmount <= 0) {
             Log::info('Net amount is zero or negative, skipping payout', [
                 'organizer_id' => $organizer->id,
                 'net_amount' => $netAmount,
             ]);
+
             return null;
         }
-        
+
         // Create payout record
         $payout = Payout::create([
             'organizer_id' => $organizer->id,
@@ -105,17 +125,17 @@ class PayoutService
             ),
             'status' => Payout::STATUS_PENDING,
         ]);
-        
+
         Log::info('Payout generated successfully', [
             'payout_id' => $payout->id,
             'organizer_id' => $organizer->id,
             'net_amount' => $netAmount,
             'transaction_count' => $payout->transaction_count,
         ]);
-        
+
         return $payout;
     }
-    
+
     /**
      * Generate payouts for all organizers for a period.
      */
@@ -129,13 +149,13 @@ class PayoutService
             'errors' => 0,
             'payouts' => [],
         ];
-        
+
         $organizers = Organizer::where('is_active', true)->get();
-        
+
         foreach ($organizers as $organizer) {
             try {
                 $payout = $this->generatePayout($organizer, $periodStart, $periodEnd);
-                
+
                 if ($payout) {
                     $results['created']++;
                     $results['payouts'][] = $payout;
@@ -150,12 +170,12 @@ class PayoutService
                 ]);
             }
         }
-        
+
         Log::info('Batch payout generation completed', $results);
-        
+
         return $results;
     }
-    
+
     /**
      * Generate weekly payouts (for the previous week).
      */
@@ -163,10 +183,10 @@ class PayoutService
     {
         $periodEnd = Carbon::now()->startOfWeek()->subDay(); // Last Sunday
         $periodStart = $periodEnd->copy()->subWeek()->addDay(); // Previous Monday
-        
+
         return $this->generatePayoutsForAllOrganizers($periodStart, $periodEnd);
     }
-    
+
     /**
      * Generate monthly payouts (for the previous month).
      */
@@ -174,10 +194,10 @@ class PayoutService
     {
         $periodEnd = Carbon::now()->startOfMonth()->subDay(); // Last day of previous month
         $periodStart = $periodEnd->copy()->startOfMonth(); // First day of previous month
-        
+
         return $this->generatePayoutsForAllOrganizers($periodStart, $periodEnd);
     }
-    
+
     /**
      * Process approved payouts (actually send the money).
      */
@@ -187,23 +207,23 @@ class PayoutService
             'processed' => 0,
             'failed' => 0,
         ];
-        
+
         $payouts = Payout::where('status', Payout::STATUS_APPROVED)->get();
-        
+
         foreach ($payouts as $payout) {
             try {
                 // Mark as processing
                 $payout->markAsProcessing(auth()->user());
-                
+
                 // TODO: Integrate with actual payment gateway
                 // For now, we'll simulate success
-                $paymentReference = 'PAY-' . strtoupper(uniqid());
-                
+                $paymentReference = 'PAY-'.strtoupper(uniqid());
+
                 // Mark as paid
                 $payout->markAsPaid($paymentReference);
-                
+
                 $results['processed']++;
-                
+
                 Log::info('Payout processed successfully', [
                     'payout_id' => $payout->id,
                     'payment_reference' => $paymentReference,
@@ -211,31 +231,46 @@ class PayoutService
             } catch (\Exception $e) {
                 $payout->markAsFailed($e->getMessage());
                 $results['failed']++;
-                
+
                 Log::error('Failed to process payout', [
                     'payout_id' => $payout->id,
                     'error' => $e->getMessage(),
                 ]);
             }
         }
-        
+
         return $results;
     }
-    
+
     /**
      * Get payout summary for an organizer.
      */
     public function getOrganizerPayoutSummary(Organizer $organizer): array
     {
         $payouts = Payout::where('organizer_id', $organizer->id)->get();
-        
+
+        // Calculate total refunds that affected payouts
+        $totalRefunds = Transaction::where('organizer_id', $organizer->id)
+            ->where('type', Transaction::TYPE_REFUND)
+            ->where('status', Transaction::STATUS_COMPLETED)
+            ->sum(DB::raw('ABS(net_amount)'));
+
+        // Calculate pending refunds (approved but not yet processed)
+        $pendingRefunds = RefundRequest::whereHas('booking.event', function ($query) use ($organizer) {
+            $query->where('organizer_id', $organizer->id);
+        })
+            ->where('status', RefundRequest::STATUS_APPROVED)
+            ->sum('approved_amount');
+
         return [
             'total_payouts' => $payouts->count(),
             'total_paid' => $payouts->where('status', Payout::STATUS_PAID)->sum('net_amount'),
             'pending_amount' => $payouts->where('status', Payout::STATUS_PENDING)->sum('net_amount'),
             'approved_amount' => $payouts->where('status', Payout::STATUS_APPROVED)->sum('net_amount'),
+            'total_refunds_processed' => $totalRefunds,
+            'pending_refunds' => $pendingRefunds,
             'last_payout' => $payouts->where('status', Payout::STATUS_PAID)->sortByDesc('paid_at')->first(),
-            'next_payout' => $payouts->whereIn('status', [Payout::STATUS_PENDING, Payout::STATUS_APPROVED])->first(),
+            'pending_payouts' => $payouts->whereIn('status', [Payout::STATUS_PENDING, Payout::STATUS_APPROVED]),
         ];
     }
 }

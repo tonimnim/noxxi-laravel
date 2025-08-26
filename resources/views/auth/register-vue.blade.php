@@ -4,12 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Register - {{ config('app.name', 'NOXXI') }}</title>
+    <title>Create Account - {{ config('app.name', 'NOXXI') }}</title>
+    
+    @include('partials.favicon')
+    
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Auth Check -->
+    @include('partials.auth-check')
 </head>
 <body>
     <div id="app">
-        <register-form></register-form>
+        <user-register></user-register>
     </div>
 </body>
 </html>

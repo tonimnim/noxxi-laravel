@@ -19,55 +19,80 @@ class EventSearchController extends Controller
     public function search(Request $request)
     {
         $query = $request->get('q');
-        
-        if (!$query || strlen($query) < 2) {
-            return $this->validationError(['q' => 'Search query must be at least 2 characters']);
+        $location = $request->get('location');
+        $date = $request->get('date');
+        $category = $request->get('category');
+
+        // Allow search with just filters (no query required)
+        if (! $query && ! $location && ! $date && ! $category) {
+            return $this->success(['events' => []]);
         }
 
         // Search term aliases
         $searchAliases = $this->getSearchAliases();
-        
+
         // Check if search term matches an alias
         $mappedCategory = $this->findMappedCategory($query, $searchAliases);
-        
+
         // Find direct category match
         $categoryMatch = $mappedCategory ?: EventCategory::where('name', 'ILIKE', "%{$query}%")
             ->orWhere('slug', 'ILIKE', "%{$query}%")
             ->first();
 
         $events = Event::where('status', 'published')
-            ->where(function ($q) use ($query, $categoryMatch) {
-                // Search in event fields
-                $q->where('title', 'ILIKE', "%{$query}%")
-                  ->orWhere('description', 'ILIKE', "%{$query}%")
-                  ->orWhere('venue_name', 'ILIKE', "%{$query}%")
-                  ->orWhere('city', 'ILIKE', "%{$query}%")
-                  ->orWhereJsonContains('tags', $query);
-                  
-                // Search in organizer name
-                $q->orWhereHas('organizer', function ($orgQuery) use ($query) {
-                    $orgQuery->where('business_name', 'ILIKE', "%{$query}%");
-                });
-                
-                // Include category matches
-                if ($categoryMatch) {
-                    $q->orWhere('category_id', $categoryMatch->id);
-                    if ($categoryMatch->children()->exists()) {
-                        $childIds = $categoryMatch->children()->pluck('id');
-                        $q->orWhereIn('category_id', $childIds);
+            ->when($query, function ($q) use ($query, $categoryMatch) {
+                $q->where(function ($subQuery) use ($query, $categoryMatch) {
+                    // Search in event fields
+                    $subQuery->where('title', 'ILIKE', "%{$query}%")
+                        ->orWhere('description', 'ILIKE', "%{$query}%")
+                        ->orWhere('venue_name', 'ILIKE', "%{$query}%")
+                        ->orWhere('city', 'ILIKE', "%{$query}%")
+                        ->orWhereJsonContains('tags', $query);
+
+                    // Search in organizer name
+                    $subQuery->orWhereHas('organizer', function ($orgQuery) use ($query) {
+                        $orgQuery->where('business_name', 'ILIKE', "%{$query}%");
+                    });
+
+                    // Include category matches
+                    if ($categoryMatch) {
+                        $subQuery->orWhere('category_id', $categoryMatch->id);
+                        if ($categoryMatch->children()->exists()) {
+                            $childIds = $categoryMatch->children()->pluck('id');
+                            $subQuery->orWhereIn('category_id', $childIds);
+                        }
                     }
-                }
-                
-                // Search in category names
-                $q->orWhereHas('category', function ($catQuery) use ($query) {
-                    $catQuery->where('name', 'ILIKE', "%{$query}%")
-                           ->orWhere('slug', 'ILIKE', "%{$query}%");
+
+                    // Search in category names
+                    $subQuery->orWhereHas('category', function ($catQuery) use ($query) {
+                        $catQuery->where('name', 'ILIKE', "%{$query}%")
+                            ->orWhere('slug', 'ILIKE', "%{$query}%");
+                    });
+                });
+            })
+            ->when($location, function ($q) use ($location) {
+                // Search by location (city or country)
+                $q->where(function ($subQuery) use ($location) {
+                    $subQuery->where('city', 'ILIKE', "%{$location}%")
+                        ->orWhereHas('city', function ($cityQuery) use ($location) {
+                            $cityQuery->where('country', 'ILIKE', "%{$location}%");
+                        });
+                });
+            })
+            ->when($date, function ($q) use ($date) {
+                // Filter by date
+                $q->whereDate('event_date', '>=', $date);
+            })
+            ->when($category && $category !== 'all', function ($q) use ($category) {
+                // Filter by category slug
+                $q->whereHas('category', function ($catQuery) use ($category) {
+                    $catQuery->where('slug', $category);
                 });
             })
             ->with(['organizer:id,business_name', 'category'])
             ->select([
                 'id', 'title', 'slug', 'event_date', 'venue_name',
-                'city', 'min_price', 'currency', 'cover_image_url', 'organizer_id'
+                'city', 'min_price', 'currency', 'cover_image_url', 'organizer_id',
             ])
             ->limit(20)
             ->get();
@@ -81,8 +106,8 @@ class EventSearchController extends Controller
     public function suggestions(Request $request)
     {
         $query = $request->get('q');
-        
-        if (!$query || strlen($query) < 2) {
+
+        if (! $query || strlen($query) < 2) {
             return $this->success(['suggestions' => []]);
         }
 
@@ -95,16 +120,16 @@ class EventSearchController extends Controller
 
         // Check for brand/term matches
         foreach ($brandMappings as $brand => $info) {
-            if (stripos($lowerQuery, $brand) !== false || 
+            if (stripos($lowerQuery, $brand) !== false ||
                 levenshtein($lowerQuery, $brand) <= 2) {
-                $key = 'cat_' . $info['category'];
-                if (!isset($seen[$key])) {
+                $key = 'cat_'.$info['category'];
+                if (! isset($seen[$key])) {
                     $suggestions[] = [
                         'type' => 'category_suggestion',
                         'text' => "Browse all {$info['type']}",
                         'category' => $info['category'],
                         'action' => 'filter_category',
-                        'priority' => 1
+                        'priority' => 1,
                     ];
                     $seen[$key] = true;
                 }
@@ -113,20 +138,21 @@ class EventSearchController extends Controller
 
         // Add event matches
         $this->addEventSuggestions($query, $suggestions);
-        
+
         // Add category matches
         $this->addCategorySuggestions($query, $suggestions, $seen);
-        
+
         // Add city matches
         $this->addCitySuggestions($query, $suggestions);
-        
+
         // Add organizer matches
         $this->addOrganizerSuggestions($query, $suggestions);
 
         // Sort and limit
-        usort($suggestions, fn($a, $b) => $a['priority'] <=> $b['priority']);
-        $suggestions = array_map(function($item) {
+        usort($suggestions, fn ($a, $b) => $a['priority'] <=> $b['priority']);
+        $suggestions = array_map(function ($item) {
             unset($item['priority']);
+
             return $item;
         }, array_slice($suggestions, 0, 10));
 
@@ -139,9 +165,6 @@ class EventSearchController extends Controller
     private function getSearchAliases(): array
     {
         return [
-            'airbnb' => 'airbnb',
-            'bnb' => 'airbnb',
-            'vacation rental' => 'airbnb',
             'movie' => 'cinema',
             'movies' => 'cinema',
             'film' => 'cinema',
@@ -161,14 +184,10 @@ class EventSearchController extends Controller
             'racing' => 'motorsports',
             'rally' => 'motorsports',
             'concert' => 'concerts',
-            'resort' => 'resorts',
             'safari' => 'adventure',
             'party' => 'nightlife',
             'club' => 'nightlife',
             'nightclub' => 'nightlife',
-            'hotel' => 'resorts',
-            'accommodation' => 'stays',
-            'lodging' => 'stays',
         ];
     }
 
@@ -178,9 +197,6 @@ class EventSearchController extends Controller
     private function getBrandMappings(): array
     {
         return [
-            'airbnb' => ['category' => 'airbnb', 'type' => 'Airbnb Rentals'],
-            'hilton' => ['category' => 'resorts', 'type' => 'Resorts'],
-            'marriott' => ['category' => 'resorts', 'type' => 'Resorts'],
             'netflix' => ['category' => 'cinema', 'type' => 'Cinema'],
             'imax' => ['category' => 'cinema', 'type' => 'Cinema'],
             'premier league' => ['category' => 'football', 'type' => 'Football'],
@@ -205,6 +221,7 @@ class EventSearchController extends Controller
                 return EventCategory::where('slug', $categorySlug)->first();
             }
         }
+
         return null;
     }
 
@@ -220,15 +237,15 @@ class EventSearchController extends Controller
             ->get();
 
         foreach ($events as $event) {
-            $dateInfo = $event->event_date ? ' - ' . date('M d', strtotime($event->event_date)) : '';
-            $cityInfo = $event->city ? ' in ' . $event->city : '';
+            $dateInfo = $event->event_date ? ' - '.date('M d', strtotime($event->event_date)) : '';
+            $cityInfo = $event->city ? ' in '.$event->city : '';
             $suggestions[] = [
                 'type' => 'event',
                 'text' => $event->title,
-                'subtitle' => trim($dateInfo . $cityInfo, ' -'),
+                'subtitle' => trim($dateInfo.$cityInfo, ' -'),
                 'event_id' => $event->id,
                 'action' => 'view_event',
-                'priority' => 2
+                'priority' => 2,
             ];
         }
     }
@@ -238,25 +255,25 @@ class EventSearchController extends Controller
      */
     private function addCategorySuggestions($query, &$suggestions, &$seen)
     {
-        $categories = EventCategory::where(function($q) use ($query) {
-                $q->where('name', 'ILIKE', "%{$query}%")
-                  ->orWhere('slug', 'ILIKE', "%{$query}%");
-            })
+        $categories = EventCategory::where(function ($q) use ($query) {
+            $q->where('name', 'ILIKE', "%{$query}%")
+                ->orWhere('slug', 'ILIKE', "%{$query}%");
+        })
             ->where('is_active', true)
             ->limit(4)
             ->get();
 
         foreach ($categories as $category) {
-            $key = 'cat_id_' . $category->id;
-            if (!isset($seen[$key])) {
-                $parentInfo = $category->parent_id ? ' (in ' . optional($category->parent)->name . ')' : '';
+            $key = 'cat_id_'.$category->id;
+            if (! isset($seen[$key])) {
+                $parentInfo = $category->parent_id ? ' (in '.optional($category->parent)->name.')' : '';
                 $suggestions[] = [
                     'type' => 'category',
-                    'text' => $category->name . $parentInfo,
+                    'text' => $category->name.$parentInfo,
                     'category_id' => $category->id,
                     'slug' => $category->slug,
                     'action' => 'filter_category',
-                    'priority' => 3
+                    'priority' => 3,
                 ];
                 $seen[$key] = true;
             }
@@ -280,9 +297,9 @@ class EventSearchController extends Controller
             $suggestions[] = [
                 'type' => 'location',
                 'text' => $city->city,
-                'subtitle' => $city->event_count . ' upcoming events',
+                'subtitle' => $city->event_count.' upcoming events',
                 'action' => 'filter_city',
-                'priority' => 4
+                'priority' => 4,
             ];
         }
     }
@@ -293,9 +310,9 @@ class EventSearchController extends Controller
     private function addOrganizerSuggestions($query, &$suggestions)
     {
         $organizers = DB::table('organizers as o')
-            ->leftJoin('events as e', function($join) {
+            ->leftJoin('events as e', function ($join) {
                 $join->on('e.organizer_id', '=', 'o.id')
-                     ->where('e.status', '=', 'published');
+                    ->where('e.status', '=', 'published');
             })
             ->where('o.is_active', true)
             ->where('o.business_name', 'ILIKE', "%{$query}%")
@@ -310,10 +327,10 @@ class EventSearchController extends Controller
             $suggestions[] = [
                 'type' => 'organizer',
                 'text' => $organizer->business_name,
-                'subtitle' => $organizer->event_count . ' events',
+                'subtitle' => $organizer->event_count.' events',
                 'organizer_id' => $organizer->id,
                 'action' => 'filter_organizer',
-                'priority' => 5
+                'priority' => 5,
             ];
         }
     }

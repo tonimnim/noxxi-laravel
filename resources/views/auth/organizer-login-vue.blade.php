@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Organizer Sign In - {{ config('app.name', 'NOXXI') }}</title>
+    
+    @include('partials.favicon')
+    
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Auth Check -->
+    @include('partials.auth-check')
+</head>
+<body>
+    <div id="app">
+        <organizer-login></organizer-login>
+    </div>
+</body>
+</html>
