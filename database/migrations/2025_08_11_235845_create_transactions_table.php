@@ -29,12 +29,16 @@ return new class extends Migration
             $table->uuid('organizer_id')->nullable();
             $table->uuid('user_id')->nullable();
             $table->uuid('payout_id')->nullable();
+            $table->uuid('refund_request_id')->nullable();
 
             // Financial details
             $table->decimal('amount', 15, 2);
             $table->string('currency', 3)->default('KES');
             $table->decimal('commission_amount', 10, 2)->nullable();
-            $table->decimal('gateway_fee', 10, 2)->nullable();
+            $table->decimal('payment_processing_fee', 10, 2)->nullable()->comment('Payment processing fee');
+            $table->decimal('paystack_fee', 10, 2)->nullable()->comment('Actual Paystack processing fee (1.5% for M-Pesa)');
+            $table->decimal('platform_commission', 10, 2)->nullable()->comment('Platform commission based on event/organizer settings');
+            $table->decimal('payout_fee', 10, 2)->nullable()->comment('M-Pesa or Bank transfer fee for payout');
             $table->decimal('net_amount', 15, 2)->nullable();
 
             // Payment gateway information
@@ -84,8 +88,8 @@ return new class extends Migration
 
             // Foreign keys
             $table->foreign('booking_id')->references('id')->on('bookings')->onDelete('cascade');
-            $table->foreign('organizer_id')->references('id')->on('organizers')->onDelete('restrict');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('restrict');
+            $table->foreign('organizer_id')->references('id')->on('organizers')->onDelete('cascade');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
             // Indexes
             $table->index('type');
@@ -94,6 +98,7 @@ return new class extends Migration
             $table->index('created_at');
             $table->index(['organizer_id', 'type', 'status']);
             $table->index(['user_id', 'type', 'status']);
+            $table->index(['status', 'created_at']); // For dashboard queries
         });
     }
 

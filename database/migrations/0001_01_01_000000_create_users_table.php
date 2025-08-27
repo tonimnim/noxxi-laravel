@@ -46,6 +46,13 @@ return new class extends Migration
             // Activity tracking
             $table->timestamp('last_active_at')->nullable();
             
+            // Security fields for login tracking
+            $table->integer('failed_login_attempts')->default(0);
+            $table->timestamp('locked_until')->nullable();
+            $table->string('last_login_ip', 45)->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->text('login_history')->nullable(); // JSON array of recent login attempts
+            
             // Laravel auth requirements
             $table->rememberToken();
             
@@ -57,6 +64,7 @@ return new class extends Migration
             $table->index('phone_number');
             $table->index('role');
             $table->index('is_active');
+            $table->index('last_active_at');
             $table->index(['full_name', 'email']); // Composite index for search
         });
 

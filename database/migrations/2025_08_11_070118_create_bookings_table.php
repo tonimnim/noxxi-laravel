@@ -70,6 +70,7 @@ return new class extends Migration
             $table->index(['created_at']);
             $table->index('expires_at');
             $table->index('payment_reference');
+            $table->index(['status', 'created_at']); // For dashboard queries
         });
     }
 

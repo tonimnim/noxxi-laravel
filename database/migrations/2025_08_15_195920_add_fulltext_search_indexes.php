@@ -36,6 +36,8 @@ return new class extends Migration
         DB::statement('CREATE INDEX IF NOT EXISTS organizers_business_name_trgm_idx ON organizers USING gin(business_name gin_trgm_ops)');
         DB::statement('CREATE INDEX IF NOT EXISTS events_title_trgm_idx ON events USING gin(title gin_trgm_ops)');
         DB::statement('CREATE INDEX IF NOT EXISTS events_venue_name_trgm_idx ON events USING gin(venue_name gin_trgm_ops)');
+        DB::statement('CREATE INDEX IF NOT EXISTS events_description_trgm_idx ON events USING gin(description gin_trgm_ops)');
+        DB::statement('CREATE INDEX IF NOT EXISTS events_city_trgm_idx ON events USING gin(city gin_trgm_ops)');
     }
 
     /**
@@ -55,5 +57,7 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS organizers_business_name_trgm_idx');
         DB::statement('DROP INDEX IF EXISTS events_title_trgm_idx');
         DB::statement('DROP INDEX IF EXISTS events_venue_name_trgm_idx');
+        DB::statement('DROP INDEX IF EXISTS events_description_trgm_idx');
+        DB::statement('DROP INDEX IF EXISTS events_city_trgm_idx');
     }
 };

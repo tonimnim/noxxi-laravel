@@ -235,7 +235,7 @@ class RefundService
     {
         $event = $booking->event;
         $hoursUntilEvent = now()->diffInHours($event->event_date, false);
-        $dayUntilEvent = ceil($hoursUntilEvent / 24);
+        $daysUntilEvent = ceil($hoursUntilEvent / 24);
 
         // Default refund policy (can be customized per event)
         $refundPercentage = 100;
@@ -247,11 +247,11 @@ class RefundService
         } elseif ($hoursUntilEvent <= 24) {
             // Within 24 hours - no refund
             $refundPercentage = 0;
-        } elseif ($dayUntilEvent <= 3) {
+        } elseif ($daysUntilEvent <= 3) {
             // 1-3 days before event - 50% refund
             $refundPercentage = 50;
             $serviceFeeRefundable = false;
-        } elseif ($dayUntilEvent <= 7) {
+        } elseif ($daysUntilEvent <= 7) {
             // 4-7 days before event - 75% refund
             $refundPercentage = 75;
             $serviceFeeRefundable = false;
@@ -276,8 +276,8 @@ class RefundService
             'refundable_ticket_amount' => $refundableTicketAmount,
             'refundable_service_fee' => $refundableServiceFee,
             'total_refund_amount' => $totalRefundAmount,
-            'days_until_event' => max(0, $dayUntilEvent),
-            'policy_description' => $this->getRefundPolicyDescription($dayUntilEvent),
+            'days_until_event' => max(0, $daysUntilEvent),
+            'policy_description' => $this->getRefundPolicyDescription($daysUntilEvent),
         ];
     }
 

@@ -21,9 +21,6 @@
         
         <!-- Account Component -->
         <user-account></user-account>
-        
-        <!-- Footer -->
-        <app-footer></app-footer>
     </div>
 </body>
 </html>

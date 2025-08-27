@@ -22,6 +22,7 @@ return new class extends Migration
             $table->text('description');
             $table->uuid('category_id');
             $table->foreign('category_id')->references('id')->on('event_categories');
+            $table->jsonb('category_metadata')->default('{}')->comment('Category-specific data (cinema ratings, sports teams, etc.)');
             
             // Venue Information
             $table->string('venue_name');
@@ -36,6 +37,7 @@ return new class extends Migration
             
             // Ticketing
             $table->jsonb('ticket_types')->default('[]');
+            $table->jsonb('ticket_sales_config')->default('{"max_tickets_per_order": 10, "show_remaining_tickets": true, "enable_waiting_list": false}');
             $table->integer('capacity');
             $table->integer('tickets_sold')->default(0);
             $table->decimal('min_price', 10, 2)->nullable();
@@ -45,31 +47,47 @@ return new class extends Migration
             // Media
             $table->jsonb('images')->default('[]');
             $table->text('cover_image_url')->nullable();
+            $table->jsonb('media')->default('{"images": [], "video_url": null}');
             
-            // Categorization
+            // Categorization & Marketing
             $table->text('tags')->nullable(); // Will store as JSON array
             $table->text('seo_keywords')->nullable(); // Will store as JSON array
+            $table->jsonb('marketing')->default('{"tags": [], "seo_description": null, "featured": false, "featured_until": null, "promotional_video": null}');
             
             // Status & Visibility
             $table->enum('status', ['draft', 'published', 'cancelled', 'postponed', 'completed', 'paused'])->default('draft');
+            $table->jsonb('draft_data')->nullable()->comment('Auto-save draft data');
+            $table->timestamp('draft_saved_at')->nullable();
             $table->boolean('featured')->default(false);
+            $table->boolean('is_featured')->default(false)->comment('Additional featured flag');
             $table->timestamp('featured_until')->nullable();
             $table->boolean('requires_approval')->default(false);
+            
+            // Commission Settings
+            $table->decimal('commission_rate', 5, 2)->nullable()->comment('Platform commission percentage (overrides organizer default)');
+            $table->enum('commission_type', ['percentage', 'fixed'])->default('percentage');
             
             // Policies & Restrictions
             $table->integer('age_restriction')->nullable();
             $table->text('terms_conditions')->nullable();
             $table->text('refund_policy')->nullable();
+            $table->jsonb('policies')->default('{"age_restriction": null, "refund_policy": null, "terms_conditions": null, "what_included": null, "what_not_included": null, "dress_code": null, "items_to_bring": null, "special_instructions": null}');
             
-            // Offline Support
+            // Offline Support & Security
             $table->jsonb('offline_mode_data')->nullable();
+            $table->string('qr_secret_key')->nullable()->comment('Secret key for QR code generation');
+            $table->jsonb('gates_config')->default('{"gates": ["main"], "vip_gates": []}');
             
             // Analytics
             $table->integer('view_count')->default(0);
             $table->integer('share_count')->default(0);
+            $table->jsonb('analytics')->default('{"page_views": 0, "unique_visitors": 0, "conversion_rate": 0, "avg_time_on_page": 0}');
             
-            // Timestamps
+            // Timestamps & Tracking
             $table->timestamp('published_at')->nullable();
+            $table->timestamp('first_published_at')->nullable();
+            $table->timestamp('last_modified_at')->nullable();
+            $table->string('modified_by')->nullable();
             $table->timestamps();
             
             // Indexes
@@ -80,7 +98,10 @@ return new class extends Migration
             $table->index('event_date');
             $table->index('city');
             $table->index(['featured', 'featured_until']);
+            $table->index('is_featured');
             $table->index(['latitude', 'longitude']);
+            $table->index(['status', 'created_at']); // For dashboard queries
+            $table->index('created_at'); // For sorting
         });
     }
 

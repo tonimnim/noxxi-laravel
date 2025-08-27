@@ -49,6 +49,9 @@ class RefundRequest extends Model
         'approved_at',
         'rejected_at',
         'processed_at',
+        'processed_amount',
+        'gateway_response',
+        'admin_notes',
     ];
 
     /**
@@ -61,10 +64,12 @@ class RefundRequest extends Model
         return [
             'requested_amount' => 'decimal:2',
             'approved_amount' => 'decimal:2',
+            'processed_amount' => 'decimal:2',
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
             'processed_at' => 'datetime',
+            'gateway_response' => 'array',
         ];
     }
 

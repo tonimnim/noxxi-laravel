@@ -15,7 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('type');
             $table->uuidMorphs('notifiable'); // Using UUIDs for polymorphic relation
-            $table->text('data');
+            $table->jsonb('data');
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
             
@@ -24,6 +24,9 @@ return new class extends Migration
             $table->index('read_at');
             $table->index('created_at');
         });
+        
+        // Add JSON index for better query performance on data column
+        \Illuminate\Support\Facades\DB::statement('CREATE INDEX notifications_data_format_index ON notifications ((data->>\'format\'))');
     }
 
     /**
@@ -31,6 +34,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        \Illuminate\Support\Facades\DB::statement('DROP INDEX IF EXISTS notifications_data_format_index');
         Schema::dropIfExists('notifications');
     }
 };

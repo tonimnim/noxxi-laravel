@@ -53,7 +53,7 @@ class AvailableBalanceService
                 'pending_payouts' => round($pendingPayouts, 2),
                 'amount_on_hold' => round($amountOnHold, 2),
                 'available_balance' => round(max(0, $availableBalance), 2),
-                'currency' => $organizer->default_currency ?? 'KES',
+                'currency' => $organizer->fresh()->default_currency ?? 'KES', // Always get fresh currency value
                 'last_updated' => now()->toIso8601String(),
             ];
         });

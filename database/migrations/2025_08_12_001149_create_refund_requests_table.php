@@ -37,6 +37,9 @@ return new class extends Migration
             $table->uuid('processed_by')->nullable();
             $table->text('review_notes')->nullable();
             $table->text('rejection_reason')->nullable();
+            $table->decimal('processed_amount', 10, 2)->nullable();
+            $table->jsonb('gateway_response')->nullable();
+            $table->text('admin_notes')->nullable();
             
             // Reference to actual refund transaction
             $table->uuid('transaction_id')->nullable();

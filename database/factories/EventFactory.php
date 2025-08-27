@@ -92,7 +92,6 @@ class EventFactory extends Factory
             'view_count' => 0,
             'share_count' => 0,
             'published_at' => now(),
-            'is_active' => true,
             'media' => [],
             'policies' => [],
             'marketing' => [],
@@ -106,10 +105,6 @@ class EventFactory extends Factory
             'analytics' => [],
             'draft_data' => null,
             'draft_saved_at' => null,
-            'listing_settings' => [],
-            'organizer_fee' => 0,
-            'platform_fee' => null, // Will be set in tests as needed
-            'city_id' => null,
             'is_featured' => false,
             'commission_rate' => null,
             'commission_type' => 'percentage',

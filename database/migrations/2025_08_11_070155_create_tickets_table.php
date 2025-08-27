@@ -20,7 +20,6 @@ return new class extends Migration
             
             // Ticket identification
             $table->string('ticket_code', 20)->unique();
-            $table->text('qr_code')->nullable();
             $table->string('ticket_hash');
             
             // Ticket details
@@ -39,6 +38,8 @@ return new class extends Migration
             
             // Status tracking
             $table->enum('status', ['valid', 'used', 'cancelled', 'transferred', 'expired'])->default('valid');
+            $table->timestamp('cancelled_at')->nullable();
+            $table->text('cancelled_reason')->nullable();
             
             // Scanning/validation tracking
             $table->timestamp('used_at')->nullable();

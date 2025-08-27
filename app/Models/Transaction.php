@@ -36,6 +36,7 @@ class Transaction extends Model
         'organizer_id',
         'user_id',
         'payout_id',
+        'refund_request_id',
         'amount',
         'currency',
         'commission_amount',

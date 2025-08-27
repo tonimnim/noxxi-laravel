@@ -81,7 +81,12 @@ class SecurityHeaders
         $policies[] = "img-src 'self' data: https:";
 
         // Fonts - allow from self, Google Fonts, and Bunny Fonts
-        $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net";
+        if (app()->environment('local', 'development')) {
+            // Include Vite dev server in development
+            $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net http://localhost:* http://127.0.0.1:*";
+        } else {
+            $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net";
+        }
 
         // Forms - only submit to same origin
         $policies[] = "form-action 'self'";

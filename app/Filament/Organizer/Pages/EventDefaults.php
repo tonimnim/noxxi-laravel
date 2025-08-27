@@ -83,6 +83,9 @@ class EventDefaults extends Page implements HasForms
             'default_refund_policy' => $data['default_refund_policy'],
         ]);
 
+        // Clear the balance cache when currency is updated so it reflects immediately
+        \Illuminate\Support\Facades\Cache::forget("organizer_balance_{$organizer->id}");
+
         Notification::make()
             ->title('Event defaults updated successfully')
             ->success()

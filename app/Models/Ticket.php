@@ -59,6 +59,8 @@ class Ticket extends Model
         'valid_until',
         'offline_validation_data',
         'metadata',
+        'cancelled_at',
+        'cancelled_reason',
     ];
 
     /**
@@ -74,6 +76,7 @@ class Ticket extends Model
             'transferred_at' => 'datetime',
             'valid_from' => 'datetime',
             'valid_until' => 'datetime',
+            'cancelled_at' => 'datetime',
             'offline_validation_data' => 'array',
             'metadata' => 'array',
         ];

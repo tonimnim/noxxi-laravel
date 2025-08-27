@@ -53,6 +53,18 @@ class Booking extends Model
         'notes',
         'expires_at',
         'cancelled_at',
+        'refunded_at',
+        'confirmed_at',
+        'payment_fee',
+        'discount_amount',
+        'payment_reference',
+        'payment_provider_data',
+        'promo_code',
+        'promo_details',
+        'booking_metadata',
+        'ip_address',
+        'user_agent',
+        'booking_source',
     ];
 
     /**
@@ -71,8 +83,12 @@ class Booking extends Model
             'subtotal' => 'decimal:2',
             'service_fee' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'payment_fee' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'expires_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'refunded_at' => 'datetime',
+            'confirmed_at' => 'datetime',
         ];
     }
 

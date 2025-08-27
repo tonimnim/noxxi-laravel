@@ -20,7 +20,7 @@ class PayoutsSummary extends Widget
 
     protected static string $view = 'filament.organizer.widgets.payouts-summary';
     
-    protected static ?string $pollingInterval = '10s'; // Poll every 10 seconds for real-time balance updates
+    protected static ?string $pollingInterval = '5s'; // Poll every 5 seconds for real-time balance updates
 
     public function getPayoutData(): array
     {
