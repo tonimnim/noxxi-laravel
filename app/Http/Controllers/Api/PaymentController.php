@@ -9,11 +9,15 @@ use App\Services\NotificationService;
 use App\Services\PaymentFlowService;
 use App\Services\PaystackService;
 use App\Services\TicketService;
+use App\Services\BookingValidationService;
+use App\Services\TicketTypeValidator;
 use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use App\Models\Event;
 
 class PaymentController extends Controller
 {
@@ -26,93 +30,168 @@ class PaymentController extends Controller
     protected PaystackService $paystackService;
 
     protected PaymentFlowService $paymentFlowService;
+    
+    protected BookingValidationService $bookingValidationService;
+    
+    protected TicketTypeValidator $ticketTypeValidator;
 
     public function __construct(
         TransactionService $transactionService,
         NotificationService $notificationService,
         TicketService $ticketService,
         PaystackService $paystackService,
-        PaymentFlowService $paymentFlowService
+        PaymentFlowService $paymentFlowService,
+        BookingValidationService $bookingValidationService,
+        TicketTypeValidator $ticketTypeValidator
     ) {
         $this->transactionService = $transactionService;
         $this->notificationService = $notificationService;
         $this->ticketService = $ticketService;
         $this->paystackService = $paystackService;
         $this->paymentFlowService = $paymentFlowService;
+        $this->bookingValidationService = $bookingValidationService;
+        $this->ticketTypeValidator = $ticketTypeValidator;
     }
 
     /**
-     * Initialize payment with Paystack.
-     * Phase 3: Now creates transaction on payment initialization
+     * Initialize payment with Paystack (handles both card and M-Pesa).
+     * Creates booking and initiates payment in one transaction.
      */
     public function initializePaystack(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'booking_id' => 'required|uuid|exists:bookings,id',
+            'event_id' => 'required|uuid|exists:events,id',
+            'ticket_types' => 'required|array|min:1',
+            'ticket_types.*.name' => 'required|string|max:255',
+            'ticket_types.*.quantity' => 'required|integer|min:1|max:100',
             'payment_method' => 'required|string|in:card,mpesa,bank_transfer',
+            'phone_number' => 'required_if:payment_method,mpesa|string|regex:/^254[0-9]{9}$/',
         ]);
 
-        // Get booking and verify ownership
-        $booking = Booking::where('id', $validated['booking_id'])
-            ->where('user_id', $request->user()->id)
-            ->with(['event', 'event.organizer'])
-            ->firstOrFail();
+        $event = Event::with('organizer')->findOrFail($validated['event_id']);
+        $user = $request->user();
 
-        // Initialize payment (creates transaction if needed)
-        $result = $this->paymentFlowService->initializePayment(
-            $booking,
-            $validated['payment_method']
+        // Validate booking request
+        $bookingValidation = $this->bookingValidationService->validateBookingRequest(
+            $user,
+            $event,
+            $validated['ticket_types']
         );
 
-        if (! $result['success']) {
-            return response()->json($result, 400);
+        if (!$bookingValidation['valid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking validation failed',
+                'errors' => $bookingValidation['errors'],
+            ], 400);
         }
 
-        Log::info('Payment initialized', [
-            'booking_id' => $booking->id,
-            'payment_method' => $validated['payment_method'],
-        ]);
+        // Use database lock to prevent race conditions
+        DB::beginTransaction();
+        try {
+            // Clean up any pending bookings for this user and event first
+            // This ensures users can always create a fresh booking
+            $deletedCount = Booking::where('user_id', $user->id)
+                ->where('event_id', $event->id)
+                ->where('status', 'pending')
+                ->where('payment_status', '!=', 'paid')
+                ->delete();
+            
+            if ($deletedCount > 0) {
+                Log::info('Cleaned up pending bookings before creating new one', [
+                    'user_id' => $user->id,
+                    'event_id' => $event->id,
+                    'deleted_count' => $deletedCount,
+                ]);
+            }
 
-        return response()->json($result);
-    }
+            // Lock event to prevent overselling
+            $lockedEvent = Event::lockForUpdate()->findOrFail($event->id);
 
-    /**
-     * Initialize M-Pesa payment.
-     * Phase 3: Now creates transaction on payment initialization
-     */
-    public function initializeMpesa(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'booking_id' => 'required|uuid|exists:bookings,id',
-            'phone_number' => 'required|string|regex:/^254[0-9]{9}$/',
-        ]);
+            // Validate and prepare tickets with server-side prices
+            $ticketValidation = $this->ticketTypeValidator->validateAndPrepareTickets(
+                $lockedEvent,
+                $validated['ticket_types']
+            );
 
-        // Get booking and verify ownership
-        $booking = Booking::where('id', $validated['booking_id'])
-            ->where('user_id', $request->user()->id)
-            ->with(['event', 'event.organizer'])
-            ->firstOrFail();
+            if (!$ticketValidation['valid']) {
+                DB::rollback();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid ticket selection',
+                    'errors' => $ticketValidation['errors'],
+                ], 400);
+            }
 
-        // Store phone number in booking
-        $booking->update(['customer_phone' => $validated['phone_number']]);
+            // Server-calculated values
+            $validatedTickets = $ticketValidation['tickets'];
+            $subtotal = $ticketValidation['subtotal'];
+            $ticketQuantity = $ticketValidation['total_quantity'];
+            $currency = $ticketValidation['currency'];
 
-        // Initialize payment with M-Pesa method
-        $result = $this->paymentFlowService->initializePayment(
-            $booking,
-            'mpesa'
-        );
+            // Calculate platform commission (deducted from organizer, NOT added to user price)
+            $platformCommission = $this->ticketTypeValidator->calculateServiceFee($lockedEvent, $subtotal);
+            
+            // User pays exactly the ticket price, no additional fees
+            $totalAmount = $subtotal;
 
-        if (! $result['success']) {
-            return response()->json($result, 400);
+            // Create booking
+            $booking = Booking::create([
+                'id' => Str::uuid(),
+                'user_id' => $user->id,
+                'event_id' => $lockedEvent->id,
+                'booking_reference' => 'BK' . strtoupper(Str::random(8)),
+                'ticket_quantity' => $ticketQuantity,
+                'ticket_types' => $validatedTickets,
+                'subtotal' => $subtotal,
+                'service_fee' => $platformCommission, // This is the platform's commission from organizer
+                'total_amount' => $totalAmount, // User pays this (same as subtotal)
+                'currency' => $currency,
+                'customer_name' => $user->full_name ?? $user->name,
+                'customer_email' => $user->email,
+                'customer_phone' => $validated['phone_number'] ?? $user->phone_number ?? '',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'payment_method' => $validated['payment_method'],
+            ]);
+
+            // Load relationships
+            $booking->load(['event', 'event.organizer']);
+
+            // Initialize payment
+            $result = $this->paymentFlowService->initializePayment(
+                $booking,
+                $validated['payment_method']
+            );
+
+            if (!$result['success']) {
+                DB::rollback();
+                return response()->json($result, 400);
+            }
+
+            DB::commit();
+
+            Log::info('Payment initialized', [
+                'booking_id' => $booking->id,
+                'payment_method' => $validated['payment_method'],
+            ]);
+
+            return response()->json($result);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Failed to create booking and initialize payment', [
+                'error' => $e->getMessage(),
+                'event_id' => $validated['event_id'],
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to initialize payment. Please try again.',
+            ], 500);
         }
-
-        Log::info('M-Pesa payment initialized', [
-            'booking_id' => $booking->id,
-            'phone_number' => $validated['phone_number'],
-        ]);
-
-        return response()->json($result);
     }
+
 
     /**
      * Verify payment status.
@@ -200,10 +279,32 @@ class PaymentController extends Controller
                     }
                 } elseif ($verification['success'] && $verification['status'] === 'failed') {
                     // Payment failed at gateway
-                    $transaction->update([
-                        'status' => Transaction::STATUS_FAILED,
-                        'failure_reason' => 'Payment failed at gateway',
-                    ]);
+                    DB::beginTransaction();
+                    try {
+                        $transaction->update([
+                            'status' => Transaction::STATUS_FAILED,
+                            'failure_reason' => 'Payment failed at gateway',
+                        ]);
+                        
+                        // Delete the booking - we don't keep failed payment bookings
+                        if ($transaction->booking) {
+                            $bookingId = $transaction->booking->id;
+                            $transaction->booking->delete();
+                            
+                            Log::info('Deleted booking after verification failure', [
+                                'booking_id' => $bookingId,
+                                'transaction_id' => $transaction->id,
+                            ]);
+                        }
+                        
+                        DB::commit();
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        Log::error('Error handling verification failure', [
+                            'transaction_id' => $transaction->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
 
             } catch (\Exception $e) {
@@ -328,17 +429,43 @@ class PaymentController extends Controller
         } elseif ($processedEvent['event'] === 'payment_failed') {
             // Handle failed payment
             $reference = $processedEvent['reference'];
-            $transaction = Transaction::where('payment_reference', $reference)->first();
+            $transaction = Transaction::where('payment_reference', $reference)
+                ->with('booking')
+                ->first();
 
             if ($transaction && $transaction->status === Transaction::STATUS_PENDING) {
-                $transaction->update([
-                    'status' => Transaction::STATUS_FAILED,
-                    'failure_reason' => $processedEvent['message'] ?? 'Payment failed',
-                ]);
+                DB::beginTransaction();
+                try {
+                    // Update transaction status
+                    $transaction->update([
+                        'status' => Transaction::STATUS_FAILED,
+                        'failure_reason' => $processedEvent['message'] ?? 'Payment failed',
+                    ]);
 
-                Log::info('Paystack payment failed', [
-                    'reference' => $reference,
-                ]);
+                    // Delete the booking entirely - we don't keep failed payment bookings
+                    if ($transaction->booking) {
+                        $bookingId = $transaction->booking->id;
+                        $transaction->booking->delete();
+                        
+                        Log::info('Deleted booking after payment failure', [
+                            'booking_id' => $bookingId,
+                            'reference' => $reference,
+                        ]);
+                    }
+
+                    DB::commit();
+                    
+                    Log::info('Paystack payment failed and booking cleaned up', [
+                        'reference' => $reference,
+                        'transaction_id' => $transaction->id,
+                    ]);
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    Log::error('Error handling failed payment', [
+                        'reference' => $reference,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
 

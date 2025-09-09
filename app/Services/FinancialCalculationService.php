@@ -25,7 +25,7 @@ class FinancialCalculationService
 
     /**
      * Calculate platform commission for a booking
-     * Priority: Event platform_fee > Event commission_rate > Organizer commission_rate
+     * Uses organizer's commission_rate set by admin
      */
     public function calculatePlatformCommission(Booking $booking): array
     {
@@ -37,33 +37,16 @@ class FinancialCalculationService
         $commissionRate = 10.0; // Default 10%
         $commissionType = 'percentage';
 
-        // Priority 1: Check event's platform_fee (overrides everything)
-        if ($event->platform_fee !== null && $event->platform_fee > 0) {
-            $commissionRate = $event->platform_fee;
-            $commissionSource = 'event_platform_fee';
-            $commissionType = 'percentage';
-        }
-        // Priority 2: Check event's commission_rate and commission_type
-        elseif ($event->commission_rate !== null) {
-            $commissionRate = $event->commission_rate;
-            $commissionType = $event->commission_type ?? 'percentage';
-            $commissionSource = 'event_commission';
-        }
-        // Priority 3: Use organizer's commission_rate
-        elseif ($event->organizer && $event->organizer->commission_rate !== null) {
+        // Use organizer's commission_rate (set by admin)
+        // This rate applies to ALL events under this organizer
+        if ($event->organizer && $event->organizer->commission_rate !== null) {
             $commissionRate = $event->organizer->commission_rate;
             $commissionType = 'percentage';
             $commissionSource = 'organizer_commission';
         }
 
-        // Calculate commission amount
-        if ($commissionType === 'fixed') {
-            // Fixed commission per booking
-            $commissionAmount = $commissionRate;
-        } else {
-            // Percentage-based commission
-            $commissionAmount = round($subtotal * ($commissionRate / 100), 2);
-        }
+        // Calculate commission amount (always percentage-based)
+        $commissionAmount = round($subtotal * ($commissionRate / 100), 2);
 
         Log::info('Platform commission calculated', [
             'booking_id' => $booking->id,

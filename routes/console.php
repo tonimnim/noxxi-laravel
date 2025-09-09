@@ -8,17 +8,16 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule event reminders to run every hour
-Schedule::command('notifications:send-event-reminders --hours=24')
-    ->hourly()
-    ->withoutOverlapping()
-    ->runInBackground();
+// Event reminders are DISABLED - we are not responsible for reminding users
+// Schedule::command('notifications:send-event-reminders --hours=24')
+//     ->hourly()
+//     ->withoutOverlapping()
+//     ->runInBackground();
 
-// Schedule event reminders for same-day events (6 hours before)
-Schedule::command('notifications:send-event-reminders --hours=6')
-    ->dailyAt('06:00')
-    ->withoutOverlapping()
-    ->runInBackground();
+// Schedule::command('notifications:send-event-reminders --hours=6')
+//     ->dailyAt('06:00')
+//     ->withoutOverlapping()
+//     ->runInBackground();
 
 // Clean old notifications once a day
 Schedule::call(function () {
@@ -46,5 +45,11 @@ Schedule::command('payouts:reconcile')
 // Clean up expired bookings that were never paid
 Schedule::command('bookings:cleanup-expired')
     ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Clean up pending bookings that were abandoned (payment not completed)
+Schedule::command('bookings:cleanup-pending --minutes=30')
+    ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->runInBackground();

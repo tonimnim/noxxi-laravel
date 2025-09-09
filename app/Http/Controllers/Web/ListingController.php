@@ -104,7 +104,6 @@ class ListingController extends Controller
             'policies' => [
                 'age_restriction' => $event->age_restriction,
                 'terms_conditions' => $event->terms_conditions,
-                'refund_policy' => $event->refund_policy,
             ],
             'tags' => $event->tags,
             'is_featured' => $event->featured,

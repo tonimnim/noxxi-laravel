@@ -11,6 +11,9 @@ class Analytics extends Page
     protected static ?string $navigationLabel = 'Analytics & Reports';
 
     protected static ?int $navigationSort = 8;
+    
+    // Hide from navigation until implemented
+    protected static bool $shouldRegisterNavigation = false;
 
     protected static string $view = 'filament.organizer.pages.analytics';
 

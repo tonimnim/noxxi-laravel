@@ -32,8 +32,9 @@ return new class extends Migration
             $table->string('city', 100);
             
             // Date & Time
-            $table->timestamp('event_date');
+            $table->timestamp('event_date')->nullable()->comment('Null for ongoing services');
             $table->timestamp('end_date')->nullable();
+            $table->enum('listing_type', ['event', 'service', 'recurring'])->default('event')->comment('Type of listing');
             
             // Ticketing
             $table->jsonb('ticket_types')->default('[]');
@@ -64,19 +65,26 @@ return new class extends Migration
             $table->boolean('requires_approval')->default(false);
             
             // Commission Settings
+            $table->decimal('platform_fee', 5, 2)->nullable()->comment('Event-specific platform fee percentage (highest priority)');
             $table->decimal('commission_rate', 5, 2)->nullable()->comment('Platform commission percentage (overrides organizer default)');
             $table->enum('commission_type', ['percentage', 'fixed'])->default('percentage');
             
             // Policies & Restrictions
             $table->integer('age_restriction')->nullable();
             $table->text('terms_conditions')->nullable();
-            $table->text('refund_policy')->nullable();
-            $table->jsonb('policies')->default('{"age_restriction": null, "refund_policy": null, "terms_conditions": null, "what_included": null, "what_not_included": null, "dress_code": null, "items_to_bring": null, "special_instructions": null}');
+            $table->jsonb('policies')->default('{"age_restriction": null, "terms_conditions": null, "what_included": null, "what_not_included": null, "dress_code": null, "items_to_bring": null, "special_instructions": null}');
+            $table->jsonb('listing_settings')->default('{"enable_reviews": true}')->comment('Listing-specific settings');
             
             // Offline Support & Security
             $table->jsonb('offline_mode_data')->nullable();
             $table->string('qr_secret_key')->nullable()->comment('Secret key for QR code generation');
             $table->jsonb('gates_config')->default('{"gates": ["main"], "vip_gates": []}');
+            
+            // Check-in Control Settings
+            $table->boolean('check_in_enabled')->default(true)->comment('Whether check-in is allowed for this event');
+            $table->timestamp('check_in_opens_at')->nullable()->comment('When check-in opens (null = always open)');
+            $table->timestamp('check_in_closes_at')->nullable()->comment('When check-in closes (null = never closes)');
+            $table->boolean('allow_immediate_check_in')->default(true)->comment('Allow check-in without time restrictions');
             
             // Analytics
             $table->integer('view_count')->default(0);
@@ -98,6 +106,7 @@ return new class extends Migration
             $table->index('event_date');
             $table->index('city');
             $table->index(['featured', 'featured_until']);
+            $table->index('platform_fee');
             $table->index('is_featured');
             $table->index(['latitude', 'longitude']);
             $table->index(['status', 'created_at']); // For dashboard queries

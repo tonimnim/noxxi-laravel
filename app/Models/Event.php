@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CloudinaryService;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -47,6 +48,7 @@ class Event extends Model
         'city_id',
         'event_date',
         'end_date',
+        'listing_type',
         'ticket_types',
         'ticket_sales_config',
         'capacity',
@@ -55,14 +57,11 @@ class Event extends Model
         'max_price',
         'currency',
         'organizer_fee',
-        'platform_fee',
         'images',
         'cover_image_url',
         'media',
         'tags',
         'status',
-        'commission_rate',
-        'commission_type',
         'draft_data',
         'draft_saved_at',
         'featured',
@@ -71,11 +70,14 @@ class Event extends Model
         'listing_settings',
         'age_restriction',
         'terms_conditions',
-        'refund_policy',
         'policies',
         'offline_mode_data',
         'qr_secret_key',
         'gates_config',
+        'check_in_enabled',
+        'check_in_opens_at',
+        'check_in_closes_at',
+        'allow_immediate_check_in',
         'seo_keywords',
         'marketing',
         'view_count',
@@ -97,6 +99,8 @@ class Event extends Model
         return [
             'event_date' => 'datetime',
             'end_date' => 'datetime',
+            'check_in_opens_at' => 'datetime',
+            'check_in_closes_at' => 'datetime',
             'published_at' => 'datetime',
             'featured_until' => 'datetime',
             'first_published_at' => 'datetime',
@@ -118,6 +122,8 @@ class Event extends Model
             'analytics' => 'array',
             'featured' => 'boolean',
             'requires_approval' => 'boolean',
+            'check_in_enabled' => 'boolean',
+            'allow_immediate_check_in' => 'boolean',
             'tickets_sold' => 'integer',
             'capacity' => 'integer',
             'view_count' => 'integer',
@@ -272,6 +278,29 @@ class Event extends Model
     }
 
     /**
+     * Get full cover image URL
+     */
+    public function getCoverImageUrlAttribute($value): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        // If already a full URL, return as is
+        if (str_starts_with($value, 'http')) {
+            return $value;
+        }
+        
+        // Fix double /storage/ issue
+        if (str_starts_with($value, '/storage/')) {
+            return asset($value);
+        }
+
+        // Return full URL with storage path
+        return asset("storage/{$value}");
+    }
+
+    /**
      * Get ticket type by name.
      */
     public function getTicketType(string $typeName): ?array
@@ -331,8 +360,28 @@ class Event extends Model
      */
     public function scopeUpcoming($query)
     {
-        return $query->where('event_date', '>', now())
-            ->where('status', 'published')
+        return $query->where('status', 'published')
+            ->where(function ($q) {
+                $q->where(function ($sub) {
+                    // Services (no event_date) are always upcoming unless they have expired end_date
+                    $sub->where('listing_type', 'service')
+                        ->whereNull('event_date')
+                        ->where(function ($dateSub) {
+                            $dateSub->whereNull('end_date')
+                                ->orWhere('end_date', '>=', now());
+                        });
+                })->orWhere(function ($sub) {
+                    // Events with end_date: show if end_date hasn't passed
+                    $sub->where('listing_type', '!=', 'service')
+                        ->whereNotNull('end_date')
+                        ->where('end_date', '>=', now());
+                })->orWhere(function ($sub) {
+                    // Events without end_date: show if event_date hasn't passed
+                    $sub->where('listing_type', '!=', 'service')
+                        ->whereNull('end_date')
+                        ->where('event_date', '>=', now());
+                });
+            })
             ->orderBy('event_date');
     }
 
@@ -362,5 +411,70 @@ class Event extends Model
     public function scopeInCategory($query, $categoryId)
     {
         return $query->where('category_id', $categoryId);
+    }
+
+    /**
+     * Get featured image URL with Cloudinary transformation
+     */
+    public function getFeaturedImageUrl(string $transformation = 'event_card'): ?string
+    {
+        if (empty($this->media) || !isset($this->media[0])) {
+            return $this->cover_image_url;
+        }
+
+        $firstImage = $this->media[0];
+        
+        // Check if it's a Cloudinary image
+        if (isset($firstImage['cloudinary_id'])) {
+            $cloudinary = new CloudinaryService();
+            return $cloudinary->getTransformedUrl($firstImage['cloudinary_id'], $transformation);
+        }
+        
+        // Return the URL from media array
+        if (isset($firstImage['url'])) {
+            $url = $firstImage['url'];
+            // If it's a relative URL starting with /storage/, convert to full URL
+            if (str_starts_with($url, '/storage/')) {
+                return asset($url);
+            }
+            // If it's already a full URL, return it
+            if (str_starts_with($url, 'http')) {
+                return $url;
+            }
+            // Otherwise, assume it's a storage path
+            return asset('storage/' . $url);
+        }
+        
+        // Fallback to cover_image_url
+        return $this->cover_image_url;
+    }
+
+    /**
+     * Get all image URLs with responsive versions
+     */
+    public function getResponsiveImages(): array
+    {
+        if (empty($this->media)) {
+            return [];
+        }
+
+        $cloudinary = new CloudinaryService();
+        $images = [];
+
+        foreach ($this->media as $media) {
+            if (isset($media['cloudinary_id'])) {
+                $images[] = $cloudinary->getResponsiveUrls($media['cloudinary_id']);
+            } elseif (isset($media['url'])) {
+                // Fallback for non-Cloudinary images
+                $images[] = [
+                    'mobile' => $media['url'],
+                    'tablet' => $media['url'],
+                    'desktop' => $media['url'],
+                    'original' => $media['url'],
+                ];
+            }
+        }
+
+        return $images;
     }
 }

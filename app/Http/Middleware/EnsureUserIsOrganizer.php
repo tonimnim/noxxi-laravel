@@ -20,8 +20,8 @@ class EnsureUserIsOrganizer
             return $this->forbidden('Access restricted to organizers only');
         }
 
-        if ($request->user()->organizer && !$request->user()->organizer->isApproved()) {
-            return $this->forbidden('Your organizer account is pending approval');
+        if ($request->user()->organizer && !$request->user()->organizer->is_verified) {
+            return $this->forbidden('Your organizer account is pending verification');
         }
 
         return $next($request);

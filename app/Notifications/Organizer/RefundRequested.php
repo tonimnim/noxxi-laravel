@@ -29,7 +29,7 @@ class RefundRequested extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return ['database'];
     }
 
     /**
@@ -64,11 +64,13 @@ class RefundRequested extends Notification implements ShouldQueue
     {
         $currency = $this->refundRequest->currency;
         $amount = number_format($this->refundRequest->requested_amount, 2);
+        $customerName = $this->refundRequest->user->full_name ?? $this->refundRequest->user->email ?? 'Customer';
+        $eventTitle = $this->refundRequest->booking->event->title ?? 'Event';
 
         return [
             'format' => 'filament',
             'title' => 'New Refund Request',
-            'body' => "{$this->refundRequest->user->full_name} requested {$currency} {$amount} refund",
+            'body' => "{$customerName} requested {$currency} {$amount} refund for {$eventTitle}",
             'icon' => 'heroicon-o-receipt-refund',
             'color' => 'warning',
             'url' => "/organizer/dashboard/refund-requests/{$this->refundRequest->id}",
@@ -84,7 +86,9 @@ class RefundRequested extends Notification implements ShouldQueue
             'booking_id' => $this->refundRequest->booking_id,
             'event_id' => $this->refundRequest->booking->event_id,
             'amount' => $this->refundRequest->requested_amount,
-            'customer' => $this->refundRequest->user->full_name,
+            'currency' => $currency,
+            'customer' => $customerName,
+            'reason' => $this->refundRequest->reason,
         ];
     }
 }

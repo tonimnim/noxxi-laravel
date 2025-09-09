@@ -7,7 +7,7 @@ use App\Models\Event;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Notifications\BookingConfirmed;
-use App\Notifications\EventReminder;
+// use App\Notifications\EventReminder; // Removed - not sending event reminders
 use App\Notifications\Organizer\RefundRequested;
 use App\Notifications\User\RefundApproved;
 use App\Notifications\User\RefundCompleted;
@@ -44,56 +44,14 @@ class NotificationService
     }
 
     /**
-     * Send event reminders to all attendees.
-     * Should be called by a scheduled job.
+     * Send event reminders - DISABLED
+     * We are not responsible for reminding users about their events
      */
     public function sendEventReminders(int $hoursBeforeEvent = 24): int
     {
-        $count = 0;
-        $reminderTime = Carbon::now()->addHours($hoursBeforeEvent);
-
-        // Find events happening within the specified time window
-        $events = Event::where('event_date', '>=', $reminderTime->copy()->subMinutes(30))
-            ->where('event_date', '<=', $reminderTime->copy()->addMinutes(30))
-            ->where('is_active', true)
-            ->get();
-
-        foreach ($events as $event) {
-            // Get all confirmed bookings for this event
-            $bookings = $event->bookings()
-                ->where('status', 'confirmed')
-                ->with('user')
-                ->get();
-
-            foreach ($bookings as $booking) {
-                try {
-                    // Check if reminder was already sent
-                    $alreadySent = $booking->user->notifications()
-                        ->where('type', 'App\\Notifications\\EventReminder')
-                        ->where('created_at', '>', Carbon::now()->subHours(12))
-                        ->whereJsonContains('data->event_id', $event->id)
-                        ->exists();
-
-                    if (! $alreadySent) {
-                        $booking->user->notify(new EventReminder($event, $booking, $hoursBeforeEvent));
-                        $count++;
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Failed to send event reminder', [
-                        'error' => $e->getMessage(),
-                        'booking_id' => $booking->id,
-                        'event_id' => $event->id,
-                    ]);
-                }
-            }
-        }
-
-        Log::info('Event reminders sent', [
-            'count' => $count,
-            'hours_before' => $hoursBeforeEvent,
-        ]);
-
-        return $count;
+        // This functionality has been disabled
+        // Event reminders are not being sent
+        return 0;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Filament\Organizer\Resources\EventResource\Forms;
 
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
+use Filament\Forms\Get;
 
 class PoliciesTermsStep
 {
@@ -14,6 +15,7 @@ class PoliciesTermsStep
             ->icon('heroicon-o-document-text')
             ->schema([
                 static::getPoliciesSection(),
+                static::getCheckInSettingsSection(),
                 static::getListingSettingsSection(),
             ]);
     }
@@ -23,8 +25,8 @@ class PoliciesTermsStep
         return Forms\Components\Section::make('Policies')
             ->schema([
                 Forms\Components\RichEditor::make('policies.terms_conditions')
-                    ->label('Terms & Conditions')
-                    ->placeholder('Enter your terms and conditions...')
+                    ->label('Terms & Conditions (Optional)')
+                    ->placeholder('Enter your terms and conditions including refund policy...')
                     ->maxLength(5000)
                     ->toolbarButtons([
                         'bold',
@@ -36,50 +38,58 @@ class PoliciesTermsStep
                         'h3',
                         'link',
                     ])
-                    ->helperText('Specific terms attendees must agree to')
+                    ->helperText('Include all terms, conditions, and refund policy')
                     ->columnSpanFull(),
-                    
-                Forms\Components\RichEditor::make('policies.refund_policy')
-                    ->label('Refund Policy')
-                    ->placeholder('Describe your refund policy...')
-                    ->maxLength(2000)
-                    ->toolbarButtons([
-                        'bold',
-                        'italic',
-                        'bulletList',
-                        'orderedList',
-                        'link',
-                    ])
-                    ->helperText('When and how refunds are processed')
-                    ->columnSpanFull(),
-                    
-                Forms\Components\Textarea::make('policies.what_included')
-                    ->label("What's Included")
-                    ->placeholder('List what attendees will receive...')
-                    ->rows(2)
-                    ->maxLength(1000)
-                    ->helperText('Benefits and inclusions'),
-                    
-                Forms\Components\Textarea::make('policies.what_not_included')
-                    ->label("What's Not Included")
-                    ->placeholder('List exclusions...')
-                    ->rows(2)
-                    ->maxLength(1000)
-                    ->helperText('Items not covered by ticket'),
+            ])
+            ->columns(1);
+    }
+    
+    protected static function getCheckInSettingsSection(): Forms\Components\Section
+    {
+        return Forms\Components\Section::make('Check-in Settings')
+            ->description('Control when and how attendees can check in')
+            ->schema([
+                Forms\Components\Grid::make(2)
+                    ->schema([
+                        Forms\Components\Toggle::make('check_in_enabled')
+                            ->label('Enable Check-in')
+                            ->default(true)
+                            ->helperText('Allow ticket scanning and check-in')
+                            ->reactive()
+                            ->columnSpan(1),
+                            
+                        Forms\Components\Toggle::make('allow_immediate_check_in')
+                            ->label('Allow Immediate Check-in')
+                            ->default(true)
+                            ->helperText('Allow check-in without time restrictions')
+                            ->reactive()
+                            ->columnSpan(1),
+                    ]),
                     
                 Forms\Components\Grid::make(2)
                     ->schema([
-                        Forms\Components\TextInput::make('policies.dress_code')
-                            ->label('Dress Code')
-                            ->placeholder('e.g., Smart Casual, Formal')
-                            ->maxLength(100),
+                        Forms\Components\DateTimePicker::make('check_in_opens_at')
+                            ->label('Check-in Opens At')
+                            ->helperText('When check-in window opens (leave empty for always open)')
+                            ->displayFormat('Y-m-d H:i')
+                            ->native(false)
+                            ->visible(fn (Forms\Get $get) => !$get('allow_immediate_check_in'))
+                            ->minDate(fn () => now())
+                            ->beforeOrEqual('event_date')
+                            ->requiredIf('allow_immediate_check_in', false)
+                            ->columnSpan(1),
                             
-                        Forms\Components\Textarea::make('policies.special_instructions')
-                            ->label('Special Instructions')
-                            ->placeholder('Any special instructions...')
-                            ->rows(2)
-                            ->maxLength(500),
-                    ]),
+                        Forms\Components\DateTimePicker::make('check_in_closes_at')
+                            ->label('Check-in Closes At')
+                            ->helperText('When check-in window closes (leave empty for never)')
+                            ->displayFormat('Y-m-d H:i')
+                            ->native(false)
+                            ->visible(fn (Forms\Get $get) => !$get('allow_immediate_check_in'))
+                            ->after('check_in_opens_at')
+                            ->afterOrEqual('event_date')
+                            ->columnSpan(1),
+                    ])
+                    ->visible(fn (Forms\Get $get) => $get('check_in_enabled')),
             ])
             ->columns(1);
     }

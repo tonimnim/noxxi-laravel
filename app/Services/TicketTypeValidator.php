@@ -138,23 +138,24 @@ class TicketTypeValidator
     }
 
     /**
-     * Calculate service fee based on event or organizer settings
+     * Calculate platform commission to be deducted from organizer's payout
+     * This is NOT added to the user's price - it's the platform's cut from the organizer
      */
     public function calculateServiceFee(Event $event, float $subtotal): float
     {
-        // Check if event has specific platform fee (0 means use organizer's rate)
-        if ($event->platform_fee !== null && $event->platform_fee != 0) {
+        // Check if event has specific platform fee
+        if ($event->platform_fee !== null && $event->platform_fee > 0) {
             return round($subtotal * ($event->platform_fee / 100), 2);
         }
 
-        // Use organizer's commission rate
+        // Use organizer's commission rate (must be set by admin during verification)
         $organizer = $event->organizer;
         if ($organizer && $organizer->commission_rate > 0) {
             return round($subtotal * ($organizer->commission_rate / 100), 2);
         }
 
-        // Default to 3% if nothing is configured
-        return round($subtotal * 0.03, 2);
+        // No default - commission must be set by admin
+        return 0;
     }
 
     /**

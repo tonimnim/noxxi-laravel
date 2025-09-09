@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RefundController;
+use App\Http\Controllers\Api\RefundRequestController;
 use App\Http\Controllers\Api\SystemHealthController;
 use App\Http\Controllers\Api\V1\OrganizerListingController;
 use App\Http\Controllers\Api\V1\TicketValidationController;
@@ -39,6 +40,11 @@ Route::prefix('auth')->group(function () {
     Route::post('organizer/register', [AuthController::class, 'registerOrganizer'])->middleware('throttle:auth'); // Alternative route
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:auth');
     Route::get('check', [AuthController::class, 'checkAuth']); // Check if user is authenticated
+    
+    // Email verification routes (public)
+    Route::post('verify-email', [AuthController::class, 'verifyEmail'])->middleware('throttle:verification');
+    Route::post('resend-verification', [AuthController::class, 'resendVerification'])->middleware('throttle:verification');
+    Route::get('verification-status', [AuthController::class, 'verificationStatus'])->middleware('throttle:verification');
 
     // Password reset routes (public) with stricter rate limiting
     Route::post('password/request-reset', [AuthController::class, 'requestPasswordReset'])->middleware('throttle:password-reset');
@@ -63,6 +69,7 @@ Route::prefix('events')->group(function () {
 });
 
 // Category-specific routes
+Route::get('/events-category', [EventController::class, 'events']);
 Route::get('/experiences', [EventController::class, 'experiences']);
 Route::get('/sports', [EventController::class, 'sports']);
 Route::get('/cinema', [EventController::class, 'cinema']);
@@ -87,15 +94,13 @@ Route::prefix('system')->middleware('throttle:60,1')->group(function () {
     Route::get('/metrics', [SystemHealthController::class, 'metrics']);
 });
 
-// Protected routes (require authentication)
-Route::middleware('auth:api')->group(function () {
+// Protected routes (require authentication and email verification)
+Route::middleware(['auth:api', 'verified'])->group(function () {
     // Auth routes with rate limiting
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::get('user', [AuthController::class, 'me']); // Alias for Vue components
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('verify-email', [AuthController::class, 'verifyEmail'])->middleware('throttle:verification');
-        Route::post('resend-verification', [AuthController::class, 'resendVerification'])->middleware('throttle:verification');
     });
 
     // User profile routes
@@ -104,11 +109,17 @@ Route::middleware('auth:api')->group(function () {
         Route::put('profile', [AuthController::class, 'updateProfile']);
         Route::post('change-password', [AuthController::class, 'changePassword']);
     });
+    
+    // User settings routes (separate from profile)
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\SettingsController::class, 'index']);
+        Route::put('/', [\App\Http\Controllers\Api\SettingsController::class, 'update']);
+        Route::post('/reset', [\App\Http\Controllers\Api\SettingsController::class, 'reset']);
+    });
 
     // Booking routes
     Route::prefix('bookings')->group(function () {
         Route::get('/', [BookingController::class, 'index']);
-        Route::post('/', [BookingController::class, 'store']);
         Route::get('/{id}', [BookingController::class, 'show']);
         Route::post('/{id}/cancel', [BookingController::class, 'cancel']);
         Route::get('/{id}/tickets', [BookingController::class, 'tickets']);
@@ -137,17 +148,16 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/preferences', [NotificationController::class, 'updatePreferences']);
     });
 
-    // Payment routes
+    // Payment routes - Single endpoint for all payment methods (Paystack handles both card and M-Pesa)
     Route::prefix('payments')->group(function () {
-        Route::post('/paystack/initialize', [PaymentController::class, 'initializePaystack']);
-        Route::post('/mpesa/initialize', [PaymentController::class, 'initializeMpesa']);
+        Route::post('/initialize', [PaymentController::class, 'initializePaystack']); // Handles card, M-Pesa, bank transfer
         Route::get('/verify/{transactionId}', [PaymentController::class, 'verifyPayment']);
         Route::get('/transactions', [PaymentController::class, 'transactions']);
     });
 });
 
-// Payment callback route (requires auth but outside the main auth group for flexibility)
-Route::middleware('auth:api')->group(function () {
+// Payment callback route (requires auth and verification but outside the main auth group for flexibility)
+Route::middleware(['auth:api', 'verified'])->group(function () {
     Route::get('/payments/callback', [PaymentController::class, 'paymentCallback']);
 
     // Refund routes
@@ -158,12 +168,20 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/cancel', [RefundController::class, 'cancel']);
         Route::get('/check-eligibility/{bookingId}', [RefundController::class, 'checkEligibility']);
     });
+    
+    // Refund Request routes (new API for handling refund requests)
+    Route::prefix('refund-requests')->group(function () {
+        Route::get('/', [RefundRequestController::class, 'index']);
+        Route::post('/', [RefundRequestController::class, 'store']);
+        Route::get('/{id}', [RefundRequestController::class, 'show']);
+        Route::put('/{id}/cancel', [RefundRequestController::class, 'cancel']);
+    });
 });
 
 // API v1 Routes
 Route::prefix('v1')->group(function () {
     // Organizer-only routes
-    Route::middleware(['auth:api', 'organizer'])->prefix('organizer')->group(function () {
+    Route::middleware(['auth:api', 'verified', 'organizer'])->prefix('organizer')->group(function () {
         // Listing management
         Route::prefix('listings')->group(function () {
             Route::get('/', [OrganizerListingController::class, 'index']);
@@ -183,11 +201,13 @@ Route::prefix('v1')->group(function () {
     });
 
     // Ticket validation endpoints (for organizers/scanners)
-    Route::middleware(['auth:api'])->prefix('tickets')->group(function () {
+    Route::middleware(['auth:api', 'verified'])->prefix('tickets')->group(function () {
         Route::post('/validate', [TicketValidationController::class, 'validate']);
         Route::post('/check-in', [TicketValidationController::class, 'checkIn']);
         Route::post('/batch-validate', [TicketValidationController::class, 'batchValidate']);
         Route::post('/validate-by-code', [TicketValidationController::class, 'validateByCode']);
+        Route::post('/batch-check-in', [TicketValidationController::class, 'batchCheckIn']);
+        Route::get('/batch-status/{batchId}', [TicketValidationController::class, 'getBatchStatus'])->name('api.v1.batch-status');
         
         // Secure QR code endpoints (on-demand generation)
         Route::get('/{id}/qr', [\App\Http\Controllers\Api\SecureQrController::class, 'generateQr'])
@@ -196,17 +216,33 @@ Route::prefix('v1')->group(function () {
             ->middleware('throttle:30,1');
         Route::post('/qr/batch', [\App\Http\Controllers\Api\SecureQrController::class, 'batchGenerateQr'])
             ->middleware('throttle:5,1');
+        
+        // Cancelled tickets endpoints (for organizers)
+        Route::middleware('organizer')->group(function () {
+            Route::get('/cancelled', [\App\Http\Controllers\Api\V1\TicketController::class, 'cancelled']);
+            Route::get('/cancelled/stats', [\App\Http\Controllers\Api\V1\TicketController::class, 'cancellationStats']);
+            Route::post('/bulk-cancel', [\App\Http\Controllers\Api\V1\TicketController::class, 'bulkCancel']);
+        });
     });
 
-    // Event manifest for offline mode
-    Route::middleware(['auth:api', 'organizer'])->prefix('events')->group(function () {
+    // Event manifest for offline mode (accessible by organizers and authorized managers)
+    Route::middleware(['auth:api', 'verified'])->prefix('events')->group(function () {
         Route::get('/{id}/manifest', [TicketValidationController::class, 'getManifest']);
         Route::get('/{id}/check-in-stats', [TicketValidationController::class, 'getCheckInStats']);
+    });
+
+    // Manager/Scanner management endpoints
+    Route::middleware(['auth:api', 'verified', 'organizer'])->prefix('managers')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\V1\OrganizerManagerController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\V1\OrganizerManagerController::class, 'store']);
+        Route::put('/{id}', [\App\Http\Controllers\Api\V1\OrganizerManagerController::class, 'update']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\V1\OrganizerManagerController::class, 'destroy']);
+        Route::get('/activity', [\App\Http\Controllers\Api\V1\OrganizerManagerController::class, 'scanActivity']);
     });
 });
 
 // Legacy organizer routes (keeping for backward compatibility)
-Route::middleware(['auth:api', 'organizer'])->prefix('organizer')->group(function () {
+Route::middleware(['auth:api', 'verified', 'organizer'])->prefix('organizer')->group(function () {
     // Organizer event management (to be implemented)
     Route::prefix('events')->group(function () {
         // Route::get('/', [OrganizerEventController::class, 'index']);

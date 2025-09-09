@@ -1,4 +1,46 @@
 <laravel-boost-guidelines>
+=== foundation rules ===
+
+# Laravel Boost Guidelines
+
+The Laravel Boost guidelines are specifically curated by Laravel maintainers for this application. These guidelines should be followed closely to enhance the user's satisfaction building Laravel applications.
+
+## Foundational Context
+This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
+
+- php - 8.4.11
+- filament/filament (FILAMENT) - v3
+- laravel/framework (LARAVEL) - v12
+- laravel/prompts (PROMPTS) - v0
+- livewire/flux (FLUXUI_FREE) - v2
+- livewire/livewire (LIVEWIRE) - v3
+- laravel/pint (PINT) - v1
+- vue (VUE) - v3
+- tailwindcss (TAILWINDCSS) - v4
+
+
+## Conventions
+- You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, naming.
+- Use descriptive names for variables and methods. For example, `isRegisteredForDiscounts`, not `discount()`.
+- Check for existing components to reuse before writing a new one.
+
+## Verification Scripts
+- Do not create verification scripts or tinker when tests cover that functionality and prove it works. Unit and feature tests are more important.
+
+## Application Structure & Architecture
+- Stick to existing directory structure - don't create new base folders without approval.
+- Do not change the application's dependencies without approval.
+
+## Frontend Bundling
+- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
+
+## Replies
+- Be concise in your explanations - focus on what's important rather than explaining obvious details.
+
+## Documentation Files
+- You must only create documentation files if explicitly requested by the user.
+
+
 === boost rules ===
 
 ## Laravel Boost
@@ -24,15 +66,48 @@
 - You must use this tool to search for Laravel-ecosystem documentation before falling back to other approaches.
 - Search the documentation before making code changes to ensure we are taking the correct approach.
 - Use multiple, broad, simple, topic based queries to start. For example: `['rate limiting', 'routing rate limiting', 'routing']`.
+- Do not add package names to queries - package information is already shared. For example, use `test resource table`, not `filament 4 test resource table`.
 
 ### Available Search Syntax
 - You can and should pass multiple queries at once. The most relevant results will be returned first.
 
 1. Simple Word Searches with auto-stemming - query=authentication - finds 'authenticate' and 'auth'
 2. Multiple Words (AND Logic) - query=rate limit - finds knowledge containing both "rate" AND "limit"
-3. Quoted Phrases (Exact Position) - query="infinite scroll - Words must be adjacent and in that order
+3. Quoted Phrases (Exact Position) - query="infinite scroll" - Words must be adjacent and in that order
 4. Mixed Queries - query=middleware "rate limit" - "middleware" AND exact phrase "rate limit"
 5. Multiple Queries - queries=["authentication", "middleware"] - ANY of these terms
+
+
+=== php rules ===
+
+## PHP
+
+- Always use curly braces for control structures, even if it has one line.
+
+### Constructors
+- Use PHP 8 constructor property promotion in `__construct()`.
+    - <code-snippet>public function __construct(public GitHub $github) { }</code-snippet>
+- Do not allow empty `__construct()` methods with zero parameters.
+
+### Type Declarations
+- Always use explicit return type declarations for methods and functions.
+- Use appropriate PHP type hints for method parameters.
+
+<code-snippet name="Explicit Return Types and Method Params" lang="php">
+protected function isAccessible(User $user, ?string $path = null): bool
+{
+    ...
+}
+</code-snippet>
+
+## Comments
+- Prefer PHPDoc blocks over comments. Never use comments within the code itself unless there is something _very_ complex going on.
+
+## PHPDoc Blocks
+- Add useful array shape type definitions for arrays when appropriate.
+
+## Enums
+- Typically, keys in an Enum should be TitleCase. For example: `FavoritePerson`, `BestLake`, `Monthly`.
 
 
 === filament/core rules ===
@@ -41,6 +116,7 @@
 - Filament is used by this application, check how and where to follow existing application conventions.
 - Filament is a Server-Driven UI (SDUI) framework for Laravel. It allows developers to define user interfaces in PHP using structured configuration objects. It is built on top of Livewire, Alpine.js, and Tailwind CSS.
 - You can use the `search-docs` tool to get information from the official Filament documentation when needed. This is very useful for Artisan command arguments, specific code examples, testing functionality, relationship management, and ensuring you're following idiomatic practices.
+- Utilize static `make()` methods for consistent component initialization.
 
 ### Artisan
 - You must use the Filament specific Artisan commands to create new files or components for Filament. You can find these with the `list-artisan-commands` tool, or with `php artisan` and the `--help` option.
@@ -68,7 +144,7 @@ Forms\Components\Select::make('user_id')
 </code-snippet>
 
 
-### Testing
+## Testing
 - It's important to test Filament functionality for user satisfaction.
 - Ensure that you are authenticated to access the application within the test.
 - Filament uses Livewire, so start assertions with `livewire()` or `Livewire::test()`.
@@ -115,6 +191,21 @@ Forms\Components\Select::make('user_id')
 
     expect($invoice->refresh())->isSent()->toBeTrue();
 </code-snippet>
+
+
+=== filament/v3 rules ===
+
+## Filament 3
+
+## Version 3 Changes To Focus On
+- Resources are located in `app/Filament/Resources/` directory.
+- Resource pages (List, Create, Edit) are auto-generated within the resource's directory - e.g., `app/Filament/Resources/PostResource/Pages/`.
+- Forms use the `Forms\Components` namespace for form fields.
+- Tables use the `Tables\Columns` namespace for table columns.
+- A new `Filament\Forms\Components\RichEditor` component is available.
+- Form and table schemas now use fluent method chaining.
+- Added `php artisan filament:optimize` command for production optimization.
+- Requires implementing `FilamentUser` contract for production access control.
 
 
 === laravel/core rules ===
@@ -195,11 +286,11 @@ Forms\Components\Select::make('user_id')
 - Fallback to standard Blade components if Flux is unavailable.
 - If available, use Laravel Boost's `search-docs` tool to get the exact documentation and code snippets available for this project.
 - Flux UI components look like this:
+
 <code-snippet name="Flux UI Component Usage Example" lang="blade">
-    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none h-10 text-sm rounded-lg w-10 inline-flex  bg-[var(--color-accent)] hover:bg-[color-mix(in_oklab,_var(--color-accent),_transparent_10%)] text-[var(--color-accent-foreground)] border border-black/10 dark:border-0 shadow-[inset_0px_1px_--theme(--color-white/.2)] [[data-flux-button-group]_&amp;]:border-e-0 [:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-[1px] dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-0 dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-s-[1px] [:is([data-flux-button-group]&gt;&amp;:not(:first-child),_[data-flux-button-group]_:not(:first-child)&gt;&amp;)]:border-s-[color-mix(in_srgb,var(--color-accent-foreground),transparent_85%)]" data-flux-button="data-flux-button" data-flux-group-target="data-flux-group-target">
-        
-    </button>
+    <flux:button variant="primary"/>
 </code-snippet>
+
 
 ### Available Components
 This is correct as of Boost installation, but there may be additional components within the codebase.
@@ -213,7 +304,7 @@ avatar, badge, brand, breadcrumbs, button, callout, checkbox, dropdown, field, h
 
 ## Livewire Core
 - Use the `search-docs` tool to find exact version specific documentation for how to write Livewire & Livewire tests.
-- Use the `php artisan make:livewire [Posts\\CreatePost]` artisan command to create new components
+- Use the `php artisan make:livewire [Posts\CreatePost]` artisan command to create new components
 - State should live on the server, with the UI reflecting it.
 - All Livewire requests hit the Laravel backend, they're like regular HTTP requests. Always validate form data, and run authorization checks in Livewire actions.
 
@@ -358,6 +449,14 @@ document.addEventListener('livewire:init', function () {
 | overflow-ellipsis | text-ellipsis |
 | decoration-slice | box-decoration-slice |
 | decoration-clone | box-decoration-clone |
+
+
+=== tests rules ===
+
+## Test Enforcement
+
+- Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
+- Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test` with a specific filename or filter.
 
 
 === .ai/noxxi-api rules ===
@@ -768,458 +867,6 @@ public function uploadImage(Request $request)
 ```
 
 Remember: APIs should be stateless, cacheable, and follow REST principles. Always consider mobile app constraints like bandwidth and offline capability.
-
-
-=== .ai/noxxi-filament rules ===
-
-# NOXXI FILAMENT DEVELOPMENT GUIDELINES
-
-## PANEL STRUCTURE
-
-### Three Separate Panels
-1. **Organizer Panel** (`/organizer`) - Event management
-2. **Admin Panel** (`/admin`) - System administration  
-3. **User Panel** (`/user`) - Ticket management
-
-### Panel Configuration
-```php
-// app/Providers/Filament/OrganizerPanelProvider.php
-->id('organizer')
-->path('organizer')
-->colors([
-    'primary' => Color::Amber,
-])
-->sidebarWidth('15rem')
-->pages([
-    \App\Filament\Organizer\Pages\Dashboard::class, // Custom dashboard
-])
-```
-
-## DASHBOARD CUSTOMIZATION
-
-### Remove Dashboard Title
-```php
-// app/Filament/Organizer/Pages/Dashboard.php
-public function getHeading(): string|Htmlable
-{
-    return '';
-}
-
-public function getSubheading(): ?string
-{
-    return null;
-}
-```
-
-### Custom Header Actions
-```php
-// In PanelProvider
-->renderHook(
-    'panels::user-menu.before',
-    fn () => view('filament.organizer.partials.header-icons')
-)
-```
-
-## RESOURCE PATTERNS
-
-### Multi-Step Wizard for Complex Forms
-```php
-// app/Filament/Organizer/Resources/EventResource/Pages/CreateEvent.php
-use HasWizard;
-
-protected function getSteps(): array
-{
-    return [
-        Forms\BasicInformationStep::make(),
-        Forms\DateLocationStep::make(),
-        Forms\TicketTypesStep::make(),
-        Forms\MediaMarketingStep::make(),
-        Forms\PoliciesTermsStep::make(),
-        Forms\ReviewPublishStep::make(),
-    ];
-}
-```
-
-### Split Large Files
-Keep files under 400 lines by splitting into:
-```
-EventResource/
-├── Forms/
-│   ├── BasicInformationStep.php
-│   ├── DateLocationStep.php
-│   └── TicketTypesStep.php
-├── Tables/
-│   └── EventTable.php
-└── Pages/
-    ├── ListEvents.php
-    ├── CreateEvent.php
-    └── EditEvent.php
-```
-
-## FORM COMPONENTS
-
-### Dynamic Category-Specific Fields
-```php
-Forms\Components\Select::make('category_id')
-    ->reactive()
-    ->afterStateUpdated(function ($state, callable $set) {
-        // Show/hide fields based on category
-    }),
-
-// Cinema-specific fields
-Forms\Components\Select::make('rating')
-    ->visible(fn ($get) => static::isCinemaCategory($get('category_id'))),
-```
-
-### JSONB Field Handling
-```php
-Forms\Components\Repeater::make('ticket_types')
-    ->schema([
-        Forms\Components\TextInput::make('name'),
-        Forms\Components\TextInput::make('price')
-            ->numeric()
-            ->prefix(fn ($get) => $get('../../currency') ?? 'KES'),
-    ])
-    ->defaultItems(1)
-    ->maxItems(10),
-```
-
-### Rich Text Editor Configuration
-```php
-Forms\Components\RichEditor::make('terms_conditions')
-    ->toolbarButtons([
-        'bold',
-        'italic', 
-        'bulletList',
-        'orderedList',
-        'link',
-    ])
-    ->maxLength(5000),
-```
-
-## TABLE CONFIGURATION
-
-### Optimized Table Setup
-```php
-return $table
-    ->columns(static::getColumns())
-    ->filters(static::getFilters())
-    ->actions(static::getActions())
-    ->defaultSort('created_at', 'desc')
-    ->paginated([10, 25, 50])
-    ->striped()
-    ->deferLoading() // Important for performance
-    ->recordClasses(fn () => 'hover:bg-gray-50');
-```
-
-### Custom Column Formatting
-```php
-Tables\Columns\TextColumn::make('title')
-    ->description(fn (Event $record): string => 
-        $record->venue_name . ' • ' . $record->city
-    )
-    ->wrap()
-    ->searchable()
-    ->sortable(),
-
-Tables\Columns\TextColumn::make('status')
-    ->badge()
-    ->color(fn ($state, $record): string => 
-        $record->isSoldOut() ? 'danger' : match($state) {
-            'published' => 'success',
-            'draft' => 'gray',
-            'paused' => 'warning',
-            default => 'gray',
-        }
-    ),
-```
-
-### Bulk Actions
-```php
-Tables\Actions\BulkAction::make('export')
-    ->action(function ($records) {
-        // Export logic
-    })
-    ->requiresConfirmation(),
-```
-
-## WIDGETS
-
-### Stats Widget Pattern
-```php
-class OrganizerStatsOverview extends BaseWidget
-{
-    protected function getStats(): array
-    {
-        return [
-            Stat::make('Total Revenue', $this->formatCurrency($revenue))
-                ->description('This month')
-                ->color('success')
-                ->chart([7, 3, 4, 5, 6, 3, 5]),
-        ];
-    }
-    
-    protected function formatCurrency($amount): string
-    {
-        $currency = auth()->user()->organizer->default_currency ?? 'KES';
-        return $currency . ' ' . number_format($amount, 0);
-    }
-}
-```
-
-### Table Widget with Actions
-```php
-class BookingsTable extends BaseWidget
-{
-    public function table(Table $table): Table
-    {
-        return $table
-            ->query(
-                Booking::query()
-                    ->where('organizer_id', auth()->user()->organizer->id)
-                    ->latest()
-            )
-            ->columns([...])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-            ]);
-    }
-}
-```
-
-## CACHING STRATEGIES
-
-### Cache Expensive Queries
-```php
-// Cache categories for dropdown
-Forms\Components\Select::make('category_id')
-    ->options(function () {
-        return cache()->remember('event_categories_grouped', 3600, function () {
-            // Expensive query here
-        });
-    })
-    ->preload(), // Load all options at once
-```
-
-### Clear Cache After Updates
-```php
-protected function afterSave(): void
-{
-    cache()->forget('event_categories_grouped');
-    cache()->forget('dashboard_stats_' . auth()->id());
-}
-```
-
-## AUTHORIZATION
-
-### Resource Authorization
-```php
-// In Resource class
-public static function canViewAny(): bool
-{
-    return auth()->user()->hasRole('organizer');
-}
-
-public static function canEdit(Model $record): bool
-{
-    return $record->organizer_id === auth()->user()->organizer->id;
-}
-```
-
-### Page-Level Authorization
-```php
-public function mount(): void
-{
-    abort_unless(auth()->user()->can('manage-events'), 403);
-}
-```
-
-## NAVIGATION
-
-### Custom Navigation Items
-```php
-// In PanelProvider
-->navigationItems([
-    NavigationItem::make('Analytics')
-        ->url(fn (): string => route('filament.organizer.pages.analytics'))
-        ->icon('heroicon-o-chart-bar')
-        ->sort(2),
-])
-```
-
-### Conditional Navigation
-```php
-->navigationGroups([
-    NavigationGroup::make('Events')
-        ->items([
-            NavigationItem::make('All Events')
-                ->visible(fn (): bool => auth()->user()->can('view-all-events')),
-        ]),
-])
-```
-
-## RESPONSIVE DESIGN
-
-### Mobile-Friendly Tables
-```php
-->contentGrid([
-    'md' => 1,  // 1 column on medium screens
-    'xl' => 1,  // 1 column on extra large
-])
-->toggleableColumns() // Allow hiding columns on mobile
-```
-
-### Responsive Form Layouts
-```php
-Forms\Components\Section::make()
-    ->schema([...])
-    ->columns([
-        'sm' => 1,
-        'md' => 2,
-        'lg' => 3,
-    ]),
-```
-
-## PERFORMANCE OPTIMIZATION
-
-### Defer Loading
-```php
-// In tables
-->deferLoading() // Don't load until user interacts
-
-// In selects
-->searchable() // Load options via search
-->optionsLimit(50) // Limit initial options
-```
-
-### Eager Loading
-```php
-public static function getEloquentQuery(): Builder
-{
-    return parent::getEloquentQuery()
-        ->with(['organizer', 'category', 'bookings']);
-}
-```
-
-### Select Specific Columns
-```php
-->query(
-    Event::select([
-        'id', 'title', 'event_date', 'status', 'min_price'
-    ])
-)
-```
-
-## CUSTOM PAGES
-
-### Analytics Dashboard
-```php
-// app/Filament/Organizer/Pages/Analytics.php
-class Analytics extends Page
-{
-    protected static string $view = 'filament.organizer.pages.analytics';
-    
-    public function getViewData(): array
-    {
-        return [
-            'revenue' => $this->getRevenueData(),
-            'bookings' => $this->getBookingsData(),
-        ];
-    }
-}
-```
-
-### Custom Actions
-```php
-protected function getHeaderActions(): array
-{
-    return [
-        Actions\Action::make('export')
-            ->action(fn () => $this->export())
-            ->icon('heroicon-o-arrow-down-tray'),
-    ];
-}
-```
-
-## FILE UPLOADS
-
-### Image Upload Configuration
-```php
-Forms\Components\FileUpload::make('images')
-    ->multiple()
-    ->image()
-    ->maxSize(5120) // 5MB
-    ->directory('event-images')
-    ->visibility('public')
-    ->imageResizeMode('cover')
-    ->imageCropAspectRatio('16:9')
-    ->maxFiles(5),
-```
-
-## NOTIFICATIONS
-
-### Success Messages
-```php
-Notification::make()
-    ->title('Event created successfully')
-    ->success()
-    ->send();
-```
-
-### Error Handling
-```php
-try {
-    // Operation
-} catch (\Exception $e) {
-    Notification::make()
-        ->title('Operation failed')
-        ->body($e->getMessage())
-        ->danger()
-        ->send();
-}
-```
-
-## COMMON PATTERNS
-
-### Status Management
-```php
-Tables\Actions\Action::make('toggle_status')
-    ->action(function (Event $record): void {
-        $record->update([
-            'status' => $record->status === 'published' ? 'paused' : 'published'
-        ]);
-    })
-    ->icon(fn (Event $record): string => 
-        $record->status === 'published' ? 'heroicon-o-pause' : 'heroicon-o-play'
-    ),
-```
-
-### Duplicate Functionality
-```php
-Tables\Actions\Action::make('duplicate')
-    ->action(function (Event $record): void {
-        $newEvent = $record->replicate();
-        $newEvent->title = $record->title . ' (Copy)';
-        $newEvent->status = 'draft';
-        $newEvent->save();
-    }),
-```
-
-## TESTING FILAMENT
-
-### Test Resource Access
-```php
-public function test_organizer_can_access_events_resource()
-{
-    $organizer = User::factory()->organizer()->create();
-    
-    $this->actingAs($organizer)
-        ->get(EventResource::getUrl('index'))
-        ->assertSuccessful();
-}
-```
-
-Remember: Keep Filament resources modular, use caching for performance, and always validate user permissions.
 
 
 === .ai/noxxi-project rules ===

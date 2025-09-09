@@ -15,14 +15,6 @@ class Login extends BaseLogin
     public function mount(): void
     {
         parent::mount();
-        
-        // Pre-fill for development (remove in production)
-        if (app()->environment('local')) {
-            $this->form->fill([
-                'email' => 'admin@noxxi.com',
-                'password' => 'admin@2024',
-            ]);
-        }
     }
     
     public function getHeading(): string|Htmlable

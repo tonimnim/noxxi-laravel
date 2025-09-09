@@ -1,29 +1,11 @@
-<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 sm:gap-3">
     {{-- Dark Mode Toggle --}}
     @include('filament.organizer.partials.dark-mode-toggle')
     
-    {{-- Notifications Icon with Badge --}}
-    <a
-        href="#"
-        class="relative p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
-        title="Notifications"
-    >
-        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-        </svg>
-        {{-- Notification Badge --}}
-        <span class="absolute -top-0.5 -right-0.5 flex h-4 w-4">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-red-500 text-white text-xs font-semibold">
-                3
-            </span>
-        </span>
-    </a>
-
-    {{-- Settings Icon --}}
+    {{-- Settings Icon - Hidden on mobile --}}
     <a
         href="{{ url('/organizer/dashboard/profile') }}"
-        class="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
+        class="hidden sm:block p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
         title="Settings"
     >
         <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -32,24 +14,16 @@
         </svg>
     </a>
 
-    {{-- Export Button --}}
-    <a
-        href="#"
-        class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        title="Export"
-    >
-        Export
-    </a>
-
-    {{-- Create Listing Button --}}
+    {{-- Create Listing Button - Responsive sizing --}}
     <a
         href="{{ route('filament.organizer.resources.listings.create') }}"
-        class="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 rounded-lg transition-colors flex items-center gap-1"
+        class="px-2 py-1.5 sm:px-3 text-xs sm:text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 rounded-lg transition-colors flex items-center gap-1"
         title="Create new listing"
     >
         <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        Create listing
+        <span class="hidden sm:inline lg:hidden">Create</span>
+        <span class="hidden lg:inline">Create listing</span>
     </a>
 </div>

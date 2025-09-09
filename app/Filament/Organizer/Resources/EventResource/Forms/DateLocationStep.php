@@ -5,6 +5,7 @@ namespace App\Filament\Organizer\Resources\EventResource\Forms;
 use App\Models\City;
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
+use Filament\Forms\Get;
 
 class DateLocationStep
 {
@@ -17,23 +18,31 @@ class DateLocationStep
                 Forms\Components\Grid::make(2)
                     ->schema([
                         Forms\Components\DateTimePicker::make('event_date')
-                            ->label('Start Date & Time')
-                            ->required()
+                            ->label(fn (Get $get) => $get('listing_type') === 'service' ? 'Service Available From (Optional)' : 'Start Date & Time')
+                            ->required(fn (Get $get) => $get('listing_type') !== 'service')
                             ->native(false)
                             ->displayFormat('M d, Y g:i A')
                             ->minDate(now()->addHours(1))
                             ->seconds(false)
-                            ->helperText('When does your listing start?'),
+                            ->visible(fn (Get $get) => $get('listing_type') !== 'service' || $get('end_date'))
+                            ->helperText(fn (Get $get) => $get('listing_type') === 'service' ? 'Optional: When service becomes available' : 'When does your listing start?'),
 
                         Forms\Components\DateTimePicker::make('end_date')
-                            ->label('End Date & Time (Optional)')
+                            ->label(fn (Get $get) => $get('listing_type') === 'service' ? 'Service Available Until (Optional)' : 'End Date & Time (Optional)')
                             ->native(false)
                             ->displayFormat('M d, Y g:i A')
                             ->minDate(now()->addHours(2))
                             ->seconds(false)
                             ->afterOrEqual('event_date')
-                            ->helperText('Leave blank for single-day listings'),
-                    ]),
+                            ->helperText(fn (Get $get) => $get('listing_type') === 'service' ? 'Optional: When service stops being available' : 'Leave blank for single-day listings'),
+                    ])
+                    ->visible(fn (Get $get) => $get('listing_type') !== 'service')
+                    ->columnSpanFull(),
+                    
+                Forms\Components\Placeholder::make('service_note')
+                    ->label('')
+                    ->content('Services are ongoing and don\'t require specific dates. Customers can book anytime.')
+                    ->visible(fn (Get $get) => $get('listing_type') === 'service'),
 
                 Forms\Components\Section::make('Venue Details')
                     ->description('Where will your listing take place?')
@@ -58,6 +67,7 @@ class DateLocationStep
                                     ->required()
                                     ->searchable()
                                     ->preload()
+                                    ->optionsLimit(250) // Show all cities
                                     ->options(function () {
                                         return City::active()
                                             ->orderBy('country')
@@ -67,49 +77,31 @@ class DateLocationStep
                                                 return [$city->id => $city->name.', '.$city->country];
                                             });
                                     })
-                                    ->helperText('Select the closest major city to your venue')
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($state, callable $set) {
-                                        if ($state) {
-                                            $city = City::find($state);
-                                            if ($city) {
-                                                // Auto-fill city name for backward compatibility
-                                                $set('city', $city->name);
-                                                // Auto-fill coordinates if available
-                                                if ($city->latitude) {
-                                                    $set('latitude', $city->latitude);
-                                                }
-                                                if ($city->longitude) {
-                                                    $set('longitude', $city->longitude);
-                                                }
-                                            }
-                                        }
-                                    }),
+                                    ->getSearchResultsUsing(function (string $search) {
+                                        return City::active()
+                                            ->where(function ($query) use ($search) {
+                                                $query->where('name', 'ILIKE', "%{$search}%")
+                                                    ->orWhere('country', 'ILIKE', "%{$search}%");
+                                            })
+                                            ->orderBy('country')
+                                            ->orderBy('name')
+                                            ->limit(50)
+                                            ->get()
+                                            ->mapWithKeys(function ($city) {
+                                                return [$city->id => $city->name.', '.$city->country];
+                                            });
+                                    })
+                                    ->helperText('Type to search for your city or scroll to see all')
+                                    ->reactive(),
 
                                 Forms\Components\TextInput::make('city')
-                                    ->label('City Name (Auto-filled)')
-                                    ->disabled()
-                                    ->dehydrated()
-                                    ->helperText('Auto-filled from city selection'),
+                                    ->label('City Name')
+                                    ->required()
+                                    ->placeholder('Enter city name')
+                                    ->maxLength(255)
+                                    ->helperText('Enter the city name for your venue'),
                             ]),
 
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('latitude')
-                                    ->numeric()
-                                    ->placeholder('Auto-filled or enter manually')
-                                    ->helperText('For map display'),
-
-                                Forms\Components\TextInput::make('longitude')
-                                    ->numeric()
-                                    ->placeholder('Auto-filled or enter manually')
-                                    ->helperText('For map display'),
-                            ]),
-                    ])
-                    ->columns(1),
-
-                Forms\Components\Section::make('Additional Settings')
-                    ->schema([
                         Forms\Components\TextInput::make('capacity')
                             ->label('Total Capacity')
                             ->numeric()
@@ -117,20 +109,8 @@ class DateLocationStep
                             ->minValue(1)
                             ->default(100)
                             ->helperText('Maximum number of tickets available'),
-
-                        Forms\Components\Select::make('age_restriction')
-                            ->label('Age Restriction')
-                            ->options([
-                                0 => 'All Ages',
-                                13 => '13+ (Teens and above)',
-                                16 => '16+ (Young adults and above)',
-                                18 => '18+ (Adults only)',
-                                21 => '21+ (Legal drinking age)',
-                            ])
-                            ->default(0)
-                            ->helperText('Select the minimum age requirement'),
                     ])
-                    ->columns(2),
+                    ->columns(1),
             ]);
     }
 }

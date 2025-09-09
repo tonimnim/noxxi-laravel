@@ -5,7 +5,7 @@
         <!-- Logo and Header -->
         <div class="text-center mb-8">
           <a href="/" class="inline-flex items-center justify-center">
-            <h1 class="logo-briski text-3xl font-bold text-[#305F64]">NOXXI</h1>
+            <h1 class="font-silk text-3xl font-bold text-[#305F64]">NOXXI</h1>
           </a>
           
           <div class="mt-6">
@@ -195,16 +195,24 @@ const handleVerification = async () => {
     return
   }
   
+  if (!userEmail.value) {
+    error.value = 'Email not found. Please register again.'
+    loading.value = false
+    return
+  }
+  
   try {
-    const response = await fetch('/auth/web/verify-email', {
+    // Use the public API endpoint that doesn't require authentication
+    const response = await fetch('/api/auth/verify-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
       },
-      body: JSON.stringify({ code: otp }),
-      credentials: 'same-origin'
+      body: JSON.stringify({ 
+        email: userEmail.value,
+        code: otp 
+      })
     })
     
     const data = await response.json()
@@ -212,15 +220,26 @@ const handleVerification = async () => {
     if (data.status === 'success') {
       success.value = 'Email verified successfully! Redirecting...'
       
-      // Update user data with the verified user from response
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user))
+      // Store the tokens received after verification
+      if (data.data) {
+        if (data.data.token) {
+          localStorage.setItem('token', data.data.token)
+        }
+        if (data.data.user) {
+          localStorage.setItem('user', JSON.stringify(data.data.user))
+        }
       }
       
       // Redirect to the appropriate dashboard based on user role
       setTimeout(() => {
-        // Use the redirect from server which is based on actual user role
-        window.location.href = data.redirect || '/'
+        const user = data.data?.user
+        if (user) {
+          const redirectPath = user.role === 'organizer' ? '/organizer' : 
+                              user.role === 'admin' ? '/admin' : '/'
+          window.location.href = redirectPath
+        } else {
+          window.location.href = '/login'
+        }
       }, 1500)
     } else {
       error.value = data.message || 'Invalid verification code'
@@ -243,15 +262,23 @@ const resendCode = async () => {
   success.value = ''
   resendLoading.value = true
   
+  if (!userEmail.value) {
+    error.value = 'Email not found. Please register again.'
+    resendLoading.value = false
+    return
+  }
+  
   try {
-    const response = await fetch('/auth/web/resend-verification', {
+    // Use the public API endpoint that doesn't require authentication
+    const response = await fetch('/api/auth/resend-verification', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
       },
-      credentials: 'same-origin'
+      body: JSON.stringify({ 
+        email: userEmail.value 
+      })
     })
     
     const data = await response.json()
@@ -284,9 +311,6 @@ const resendCode = async () => {
 </script>
 
 <style scoped>
-.logo-briski {
-  font-family: 'Briski', serif;
-}
 
 /* Hide number input spinners */
 input[type="text"]::-webkit-outer-spin-button,

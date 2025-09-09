@@ -74,9 +74,17 @@ class PaystackService
         ];
 
         try {
-            $response = Http::withToken($this->secretKey)
-                ->timeout(30)
-                ->post("{$this->baseUrl}/transaction/initialize", $requestData);
+            $httpClient = Http::withToken($this->secretKey)
+                ->timeout(30);
+                
+            // Disable SSL verification for local development only
+            if (app()->environment('local')) {
+                $httpClient = $httpClient->withOptions([
+                    'verify' => false,
+                ]);
+            }
+            
+            $response = $httpClient->post("{$this->baseUrl}/transaction/initialize", $requestData);
 
             if (! $response->successful()) {
                 Log::error('Paystack transaction initialization failed', [
@@ -116,9 +124,17 @@ class PaystackService
     public function verifyTransaction(string $reference): array
     {
         try {
-            $response = Http::withToken($this->secretKey)
-                ->timeout(30)
-                ->get("{$this->baseUrl}/transaction/verify/{$reference}");
+            $httpClient = Http::withToken($this->secretKey)
+                ->timeout(30);
+                
+            // Disable SSL verification for local development only
+            if (app()->environment('local')) {
+                $httpClient = $httpClient->withOptions([
+                    'verify' => false,
+                ]);
+            }
+            
+            $response = $httpClient->get("{$this->baseUrl}/transaction/verify/{$reference}");
 
             if (! $response->successful()) {
                 Log::error('Paystack transaction verification failed', [
@@ -242,10 +258,19 @@ class PaystackService
     public function createRefund(array $data): array
     {
         try {
-            $response = Http::withHeaders([
+            $httpClient = Http::withHeaders([
                 'Authorization' => 'Bearer '.$this->secretKey,
                 'Content-Type' => 'application/json',
-            ])->post($this->baseUrl.'/refund', [
+            ]);
+            
+            // Disable SSL verification for local development only
+            if (app()->environment('local')) {
+                $httpClient = $httpClient->withOptions([
+                    'verify' => false,
+                ]);
+            }
+            
+            $response = $httpClient->post($this->baseUrl.'/refund', [
                 'transaction' => $data['transaction'],
                 'amount' => $data['amount'] ?? null, // Optional - full refund if not specified
                 'currency' => $data['currency'] ?? 'NGN',

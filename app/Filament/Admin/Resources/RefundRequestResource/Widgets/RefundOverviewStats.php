@@ -52,7 +52,7 @@ class RefundOverviewStats extends BaseWidget
                 ->descriptionIcon('heroicon-m-clock')
                 ->color('warning')
                 ->chart([7, 3, 4, 5, 6, 3, 5, 3])
-                ->url(fn () => route('filament.admin.resources.refund-requests.index', [
+                ->url(route('filament.admin.resources.refund-requests.index', [
                     'tableFilters[status][values][0]' => 'pending',
                 ])),
 

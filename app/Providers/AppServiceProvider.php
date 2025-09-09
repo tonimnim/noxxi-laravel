@@ -6,12 +6,15 @@ use App\Channels\SmsChannel;
 use App\Http\Responses\LogoutResponse;
 use App\Listeners\LogAuthenticationActivity;
 use Filament\Http\Responses\Auth\Contracts\LogoutResponse as LogoutResponseContract;
+use Filament\Support\Assets\Js;
+use Filament\Support\Facades\FilamentAsset;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Horizon\Horizon;
 use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,6 +35,24 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Configure Horizon dashboard authentication
+        Horizon::auth(function ($request) {
+            // In local environment, allow access
+            if (app()->environment('local')) {
+                return true;
+            }
+            
+            // In production, check if user is authenticated and is an admin
+            $user = $request->user();
+            return $user && $user->role === 'admin';
+        });
+        
+        // Register Filament Alpine bridge to fix TagsInput component loading issues
+        FilamentAsset::register([
+            Js::make('filament-alpine-bridge', asset('js/filament-alpine-bridge.js'))
+                ->loadedOnRequest(false), // Load immediately, not lazily
+        ], 'app');
+        
         // Use our custom Passport Client model
         Passport::useClientModel(\App\Models\PassportClient::class);
 

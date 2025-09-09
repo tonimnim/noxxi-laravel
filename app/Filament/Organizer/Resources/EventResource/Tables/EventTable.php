@@ -15,6 +15,14 @@ class EventTable
         return $table
             ->columns(static::getColumns())
             ->filters(static::getFilters(), layout: Tables\Enums\FiltersLayout::AboveContent)
+            ->headerActions([
+                Tables\Actions\Action::make('create_listing')
+                    ->label('Create listing')
+                    ->icon('heroicon-o-plus')
+                    ->color('primary')
+                    ->url(fn () => route('filament.organizer.resources.listings.create'))
+                    ->button(),
+            ])
             ->actions(static::getActions())
             ->bulkActions(static::getBulkActions())
             ->defaultSort('created_at', 'desc')

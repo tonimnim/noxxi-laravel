@@ -20,11 +20,18 @@ class BookingValidationService
         $errors = [];
         $warnings = [];
 
-        // 1. Check for duplicate bookings (user already has active booking for this event)
-        $duplicateCheck = $this->checkDuplicateBooking($user, $event);
-        if (! $duplicateCheck['valid']) {
-            $errors = array_merge($errors, $duplicateCheck['errors']);
-        }
+        // 1. Allow multiple bookings per user per event
+        // Users may want to buy additional tickets for friends/family
+        // Commented out to allow multiple bookings
+        // $existingBooking = Booking::where('user_id', $user->id)
+        //     ->where('event_id', $event->id)
+        //     ->where('status', 'confirmed')
+        //     ->where('payment_status', 'paid')
+        //     ->first();
+        //     
+        // if ($existingBooking) {
+        //     $errors[] = "You already have a confirmed booking for this event. Reference: {$existingBooking->booking_reference}";
+        // }
 
         // 2. Validate event availability and status
         $eventCheck = $this->validateEventStatus($event);
@@ -56,47 +63,6 @@ class BookingValidationService
         ];
     }
 
-    /**
-     * Check if user already has an active booking for this event
-     * Prevents duplicate bookings
-     */
-    public function checkDuplicateBooking(User $user, Event $event): array
-    {
-        // Check for existing pending or confirmed bookings
-        $existingBooking = Booking::where('user_id', $user->id)
-            ->where('event_id', $event->id)
-            ->whereIn('status', ['pending', 'confirmed'])
-            ->whereIn('payment_status', ['unpaid', 'processing', 'paid'])
-            ->first();
-
-        if ($existingBooking) {
-            $status = $existingBooking->status;
-            $paymentStatus = $existingBooking->payment_status;
-
-            // If booking is pending and unpaid, it might be abandoned
-            if ($status === 'pending' && $paymentStatus === 'unpaid') {
-                // Check if booking is older than 30 minutes (abandoned)
-                if ($existingBooking->created_at->diffInMinutes(now()) > 30) {
-                    // Cancel the old booking
-                    $existingBooking->cancel('Abandoned - new booking initiated');
-
-                    return ['valid' => true, 'errors' => []];
-                }
-
-                return [
-                    'valid' => false,
-                    'errors' => ["You have a pending booking for this event. Please complete or cancel it first. Booking reference: {$existingBooking->booking_reference}"],
-                ];
-            }
-
-            return [
-                'valid' => false,
-                'errors' => ["You already have a booking for this event. Booking reference: {$existingBooking->booking_reference}"],
-            ];
-        }
-
-        return ['valid' => true, 'errors' => []];
-    }
 
     /**
      * Validate event status and availability
@@ -126,9 +92,34 @@ class BookingValidationService
             }
         }
 
-        // Check if event date has passed
-        if ($event->event_date < $now) {
-            $errors[] = 'This event has already passed';
+        // Check if event has started or ended based on listing type
+        if ($event->listing_type === 'service') {
+            // Services are always bookable unless they have an expiry date
+            if ($event->end_date && $event->end_date < $now) {
+                $errors[] = 'This service is no longer available';
+            }
+        } elseif ($event->listing_type === 'recurring') {
+            // Recurring events: check next occurrence or end date
+            if ($event->end_date && $event->end_date < $now) {
+                $errors[] = 'This recurring event series has ended';
+            }
+            // TODO: Add logic for next occurrence checking
+        } else {
+            // Regular events: check if they have started or ended
+            if ($event->end_date) {
+                // Multi-day event: check if it has ended
+                if ($event->end_date < $now) {
+                    $errors[] = 'This event has already ended';
+                }
+            } elseif ($event->event_date) {
+                // Single-day event: check if event date has passed
+                if ($event->event_date < $now) {
+                    $errors[] = 'This event has already passed';
+                }
+            } else {
+                // Event with no dates set - shouldn't happen
+                $errors[] = 'Event dates are not properly configured';
+            }
         }
 
         // Check if event is sold out
@@ -237,44 +228,20 @@ class BookingValidationService
     }
 
     /**
-     * Get current ticket count including confirmed and pending bookings
-     * Uses optimized query to prevent N+1 issues
+     * Get current ticket count (only confirmed tickets)
+     * No longer counts pending bookings since they're in cache
      */
     private function getCurrentTicketCount(Event $event): int
     {
-        // Count actual tickets
-        $ticketCount = $event->tickets()
+        // Count only actual tickets that have been created
+        return $event->tickets()
             ->whereIn('status', ['valid', 'used', 'transferred'])
             ->count();
-
-        // Count pending bookings (tickets not yet created)
-        // Use ticket_quantity if available, otherwise sum from ticket_types JSON
-        $pendingBookings = DB::table('bookings')
-            ->where('event_id', $event->id)
-            ->whereIn('status', ['pending', 'confirmed'])
-            ->whereIn('payment_status', ['unpaid', 'processing', 'paid'])
-            ->where('created_at', '>', now()->subMinutes(30)) // Only count recent pending bookings
-            ->get();
-
-        $pendingTickets = 0;
-        foreach ($pendingBookings as $booking) {
-            // Use ticket_quantity if set, otherwise calculate from ticket_types
-            if ($booking->ticket_quantity) {
-                $pendingTickets += $booking->ticket_quantity;
-            } else {
-                $ticketTypes = json_decode($booking->ticket_types, true) ?? [];
-                foreach ($ticketTypes as $type) {
-                    $pendingTickets += (int) ($type['quantity'] ?? 0);
-                }
-            }
-        }
-
-        return $ticketCount + $pendingTickets;
     }
 
     /**
      * Get available quantity for a specific ticket type
-     * Considers both created tickets and pending bookings
+     * Only considers actual sold tickets
      */
     private function getAvailableQuantityForTicketType(Event $event, array $ticketType): int
     {
@@ -287,25 +254,7 @@ class BookingValidationService
             ->whereIn('status', ['valid', 'used', 'transferred'])
             ->count();
 
-        // Count pending bookings for this ticket type (simpler approach for compatibility)
-        $pendingBookings = DB::table('bookings')
-            ->where('event_id', $event->id)
-            ->whereIn('status', ['pending', 'confirmed'])
-            ->whereIn('payment_status', ['unpaid', 'processing', 'paid'])
-            ->where('created_at', '>', now()->subMinutes(30)) // Only recent pending bookings
-            ->get();
-
-        $pendingCount = 0;
-        foreach ($pendingBookings as $booking) {
-            $ticketTypes = json_decode($booking->ticket_types, true) ?? [];
-            foreach ($ticketTypes as $type) {
-                if (($type['name'] ?? $type['type'] ?? '') === $typeName) {
-                    $pendingCount += (int) ($type['quantity'] ?? 0);
-                }
-            }
-        }
-
-        return max(0, $totalQuantity - $soldCount - $pendingCount);
+        return max(0, $totalQuantity - $soldCount);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Services\CloudinaryService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Spatie\QueryBuilder\AllowedFilter;
@@ -24,12 +25,30 @@ class EventController extends Controller
             ->allowedSorts(['event_date', 'created_at', 'min_price', 'title'])
             ->defaultSort('-event_date')
             ->where('status', 'published')
+            ->where(function ($q) {
+                $q->where(function ($sub) {
+                    // Events with end_date: show if end_date hasn't passed
+                    $sub->whereNotNull('end_date')
+                        ->where('end_date', '>=', now());
+                })->orWhere(function ($sub) {
+                    // Events without end_date: show if event_date hasn't passed  
+                    $sub->whereNull('end_date')
+                        ->where('event_date', '>=', now());
+                });
+            })
             ->with([
                 'organizer:id,business_name,business_logo_url',
                 'category:id,name,slug',
             ])
             ->select($this->getListFields())
             ->paginate($request->per_page ?? 20);
+
+        // Apply image transformations if requested
+        if ($request->has('image_width') || $request->has('image_height')) {
+            $events->through(function ($event) use ($request) {
+                return $this->applyImageTransformation($event, $request);
+            });
+        }
 
         return $this->success([
             'events' => $events->items(),
@@ -43,7 +62,7 @@ class EventController extends Controller
     public function show($id)
     {
         $event = Event::with([
-            'organizer:id,business_name,business_email,business_logo_url,business_description',
+            'organizer:id,business_name,business_logo_url,business_description',
             'category:id,name,slug',
         ])->find($id);
 
@@ -88,6 +107,13 @@ class EventController extends Controller
             ->limit(10)
             ->get();
 
+        // Apply image transformations if requested
+        if ($request->has('image_width') || $request->has('image_height')) {
+            $events = $events->map(function ($event) use ($request) {
+                return $this->applyImageTransformation($event, $request);
+            });
+        }
+
         return $this->success(['events' => $events]);
     }
 
@@ -126,8 +152,8 @@ class EventController extends Controller
     private function getListFields(): array
     {
         return [
-            'id', 'title', 'slug', 'event_date', 'end_date',
-            'venue_name', 'city', 'min_price', 'max_price',
+            'id', 'title', 'slug', 'description', 'event_date', 'end_date',
+            'venue_name', 'venue_address', 'city', 'min_price', 'max_price',
             'currency', 'cover_image_url', 'featured',
             'capacity', 'tickets_sold', 'organizer_id', 'category_id',
         ];
@@ -164,7 +190,6 @@ class EventController extends Controller
             'featured' => $event->featured,
             'age_restriction' => $event->age_restriction,
             'terms_conditions' => $event->terms_conditions,
-            'refund_policy' => $event->refund_policy,
             'organizer' => $event->organizer,
             'category' => $event->category,
             'is_sold_out' => $event->isSoldOut(),
@@ -200,13 +225,41 @@ class EventController extends Controller
     }
 
     /**
+     * Get events from events category
+     */
+    public function events(Request $request)
+    {
+        $events = Event::query()
+            ->whereHas('category', function ($query) {
+                $query->where('slug', 'events')
+                    ->orWhereHas('parent', function ($parentQuery) {
+                        $parentQuery->where('slug', 'events');
+                    });
+            })
+            ->where('status', 'published')
+            ->where('event_date', '>', now())
+            ->with(['organizer:id,business_name,business_logo_url'])
+            ->select($this->getListFields())
+            ->orderBy('event_date', 'asc')
+            ->paginate($request->per_page ?? 12);
+
+        return $this->success([
+            'events' => $events->items(),
+            'meta' => $this->getPaginationMeta($events),
+        ]);
+    }
+
+    /**
      * Get experiences events
      */
     public function experiences(Request $request)
     {
         $events = Event::query()
             ->whereHas('category', function ($query) {
-                $query->where('slug', 'experiences');
+                $query->where('slug', 'experiences')
+                    ->orWhereHas('parent', function ($parentQuery) {
+                        $parentQuery->where('slug', 'experiences');
+                    });
             })
             ->where('status', 'published')
             ->where('event_date', '>', now())
@@ -228,7 +281,10 @@ class EventController extends Controller
     {
         $events = Event::query()
             ->whereHas('category', function ($query) {
-                $query->where('slug', 'sports');
+                $query->where('slug', 'sports')
+                    ->orWhereHas('parent', function ($parentQuery) {
+                        $parentQuery->where('slug', 'sports');
+                    });
             })
             ->where('status', 'published')
             ->where('event_date', '>', now())
@@ -250,7 +306,10 @@ class EventController extends Controller
     {
         $events = Event::query()
             ->whereHas('category', function ($query) {
-                $query->where('slug', 'cinema');
+                $query->where('slug', 'cinema')
+                    ->orWhereHas('parent', function ($parentQuery) {
+                        $parentQuery->where('slug', 'cinema');
+                    });
             })
             ->where('status', 'published')
             ->where('event_date', '>', now())
@@ -263,5 +322,52 @@ class EventController extends Controller
             'events' => $events->items(),
             'meta' => $this->getPaginationMeta($events),
         ]);
+    }
+
+    /**
+     * Apply image transformations to event
+     */
+    private function applyImageTransformation($event, Request $request): array
+    {
+        $width = $request->input('image_width');
+        $height = $request->input('image_height');
+        $crop = $request->input('image_crop', 'fill');
+
+        // If no dimensions specified, return original
+        if (!$width && !$height) {
+            return $event->toArray();
+        }
+
+        $cloudinary = new CloudinaryService();
+        $eventArray = $event->toArray();
+
+        // Transform cover image URL if it exists
+        if ($event->cover_image_url) {
+            $eventArray['cover_image_url'] = $cloudinary->transformCloudinaryUrl(
+                $event->cover_image_url,
+                $width,
+                $height,
+                $crop
+            );
+        }
+
+        // Transform organizer logo if it exists
+        if (isset($eventArray['organizer']['business_logo_url']) && $eventArray['organizer']['business_logo_url']) {
+            $eventArray['organizer']['business_logo_url'] = $cloudinary->transformCloudinaryUrl(
+                $eventArray['organizer']['business_logo_url'],
+                150, // Fixed size for logos
+                150,
+                'thumb'
+            );
+        }
+
+        // Transform images array if it exists
+        if (!empty($eventArray['images'])) {
+            $eventArray['images'] = array_map(function ($imageUrl) use ($cloudinary, $width, $height, $crop) {
+                return $cloudinary->transformCloudinaryUrl($imageUrl, $width, $height, $crop);
+            }, $eventArray['images']);
+        }
+
+        return $eventArray;
     }
 }

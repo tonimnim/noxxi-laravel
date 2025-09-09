@@ -24,7 +24,7 @@ class AuthenticationService
     /**
      * Lockout duration in minutes
      */
-    protected int $lockoutMinutes = 30;
+    protected int $lockoutMinutes = 3;
 
     /**
      * Authenticate user with credentials

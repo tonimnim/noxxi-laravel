@@ -140,13 +140,13 @@ class SecureQrService
     /**
      * Validate QR code data and signature
      */
-    public function validateQrCode(string $qrContent): array
+    public function validateQrCode(string $qrContent, ?string $gateId = null): array
     {
         try {
             $decoded = json_decode(base64_decode($qrContent), true);
             
             if (!$decoded || !isset($decoded['data']) || !isset($decoded['sig'])) {
-                return ['valid' => false, 'error' => 'Invalid QR format'];
+                return ['success' => false, 'message' => 'Invalid QR format'];
             }
             
             $data = $decoded['data'];
@@ -154,13 +154,13 @@ class SecureQrService
             
             // Check expiry
             if (isset($data['exp']) && $data['exp'] < time()) {
-                return ['valid' => false, 'error' => 'QR code expired'];
+                return ['success' => false, 'message' => 'QR code expired'];
             }
             
             // Load ticket and event for signature verification
             $ticket = Ticket::with('event')->find($data['tid']);
             if (!$ticket) {
-                return ['valid' => false, 'error' => 'Ticket not found'];
+                return ['success' => false, 'message' => 'Ticket not found'];
             }
             
             // Verify signature
@@ -170,23 +170,53 @@ class SecureQrService
                     'ticket_id' => $data['tid'],
                     'provided_sig' => $signature
                 ]);
-                return ['valid' => false, 'error' => 'Invalid signature'];
+                return ['success' => false, 'message' => 'Invalid signature'];
             }
             
             // Check if ticket is already used
             if ($ticket->status === 'used') {
-                return ['valid' => false, 'error' => 'Ticket already used', 'used_at' => $ticket->used_at];
+                return [
+                    'success' => false,
+                    'message' => 'Ticket already used',
+                    'used_at' => $ticket->used_at?->toIso8601String(),
+                    'entry_gate' => $ticket->entry_gate
+                ];
             }
             
+            // Check if ticket is cancelled
+            if ($ticket->status === 'cancelled') {
+                return [
+                    'success' => false,
+                    'message' => 'This ticket has been cancelled'
+                ];
+            }
+            
+            // Return success with ticket details
             return [
-                'valid' => true,
-                'ticket' => $ticket,
-                'data' => $data
+                'success' => true,
+                'message' => 'Ticket is valid',
+                'ticket' => [
+                    'id' => $ticket->id,
+                    'code' => $ticket->ticket_code,
+                    'type' => $ticket->ticket_type,
+                    'holder_name' => $ticket->holder_name,
+                    'holder_email' => $ticket->holder_email,
+                    'seat_number' => $ticket->seat_number,
+                    'seat_section' => $ticket->seat_section,
+                ],
+                'event' => [
+                    'id' => $ticket->event->id,
+                    'title' => $ticket->event->title,
+                    'date' => $ticket->event->event_date->toIso8601String(),
+                    'venue' => $ticket->event->venue_name,
+                ],
+                'can_check_in' => true,
+                'gate_id' => $gateId
             ];
             
         } catch (\Exception $e) {
             Log::error('QR validation error', ['error' => $e->getMessage()]);
-            return ['valid' => false, 'error' => 'Validation failed'];
+            return ['success' => false, 'message' => 'Validation failed'];
         }
     }
 
@@ -219,5 +249,184 @@ class SecureQrService
         
         // Allow 10 QR generations per hour per ticket
         return $attempts < 10;
+    }
+
+    /**
+     * Generate offline manifest for event scanning
+     * This allows scanners to validate tickets offline
+     */
+    public function generateOfflineManifest(Event $event): array
+    {
+        // Get all valid tickets for this event
+        $tickets = Ticket::where('event_id', $event->id)
+            ->whereIn('status', ['valid', 'transferred'])
+            ->select(['id', 'ticket_code', 'holder_name', 'ticket_type', 'status', 'seat_number', 'seat_section'])
+            ->get();
+
+        $manifest = [];
+        
+        foreach ($tickets as $ticket) {
+            // Generate signature for each ticket for offline validation
+            $signature = $this->generateSignature([
+                'ticket_id' => $ticket->id,
+                'event_id' => $event->id,
+                'ticket_code' => $ticket->ticket_code,
+            ]);
+
+            $manifest[] = [
+                'id' => $ticket->id,
+                'code' => $ticket->ticket_code,
+                'holder' => $ticket->holder_name,
+                'type' => $ticket->ticket_type,
+                'status' => $ticket->status,
+                'seat' => $ticket->seat_number,
+                'section' => $ticket->seat_section,
+                'signature' => $signature,
+            ];
+        }
+
+        return [
+            'version' => '1.0',
+            'generated_at' => now()->toIso8601String(),
+            'event_id' => $event->id,
+            'total_tickets' => count($manifest),
+            'tickets' => $manifest,
+        ];
+    }
+
+    /**
+     * Check in a ticket (mark as used)
+     */
+    public function checkInTicket(string $ticketId, string $userId, ?string $gateId = null, ?string $deviceId = null): array
+    {
+        try {
+            $ticket = Ticket::with(['event', 'booking.user'])->find($ticketId);
+            
+            if (!$ticket) {
+                return [
+                    'success' => false,
+                    'message' => 'Ticket not found'
+                ];
+            }
+            
+            // Check if ticket is already used
+            if ($ticket->status === 'used') {
+                return [
+                    'success' => false,
+                    'message' => 'Ticket already checked in',
+                    'used_at' => $ticket->used_at?->toIso8601String(),
+                    'entry_gate' => $ticket->entry_gate
+                ];
+            }
+            
+            // Check if ticket is cancelled
+            if ($ticket->status === 'cancelled') {
+                return [
+                    'success' => false,
+                    'message' => 'This ticket has been cancelled'
+                ];
+            }
+            
+            // Check if ticket has expired
+            if ($ticket->status === 'expired') {
+                return [
+                    'success' => false,
+                    'message' => 'This ticket has expired'
+                ];
+            }
+            
+            // Check if check-in is enabled for this event
+            if (!$ticket->event->check_in_enabled) {
+                return [
+                    'success' => false,
+                    'message' => 'Check-in is not enabled for this event'
+                ];
+            }
+            
+            // Check organizer-defined check-in window
+            if (!$ticket->event->allow_immediate_check_in) {
+                // Check if check-in window has opened
+                if ($ticket->event->check_in_opens_at && $ticket->event->check_in_opens_at->isFuture()) {
+                    return [
+                        'success' => false,
+                        'message' => 'Check-in has not opened yet',
+                        'opens_at' => $ticket->event->check_in_opens_at->toIso8601String()
+                    ];
+                }
+                
+                // Check if check-in window has closed
+                if ($ticket->event->check_in_closes_at && $ticket->event->check_in_closes_at->isPast()) {
+                    return [
+                        'success' => false,
+                        'message' => 'Check-in window has closed',
+                        'closed_at' => $ticket->event->check_in_closes_at->toIso8601String()
+                    ];
+                }
+            }
+            
+            // Check ticket validity period
+            if ($ticket->valid_from && $ticket->valid_from->isFuture()) {
+                return [
+                    'success' => false,
+                    'message' => 'Ticket is not yet valid',
+                    'valid_from' => $ticket->valid_from->toIso8601String()
+                ];
+            }
+            
+            if ($ticket->valid_until && $ticket->valid_until->isPast()) {
+                return [
+                    'success' => false,
+                    'message' => 'Ticket validity period has expired',
+                    'expired_at' => $ticket->valid_until->toIso8601String()
+                ];
+            }
+            
+            // Check if event has ended (only if end_date is set)
+            if ($ticket->event->end_date && $ticket->event->end_date->isPast()) {
+                return [
+                    'success' => false,
+                    'message' => 'This event has already ended',
+                    'ended_at' => $ticket->event->end_date->toIso8601String()
+                ];
+            }
+            
+            // Mark ticket as used
+            $ticket->update([
+                'status' => 'used',
+                'used_at' => now(),
+                'used_by' => $userId,
+                'entry_gate' => $gateId,
+                'entry_device' => $deviceId
+            ]);
+            
+            return [
+                'success' => true,
+                'message' => 'Ticket checked in successfully',
+                'check_in_time' => now()->toIso8601String(),
+                'ticket' => [
+                    'id' => $ticket->id,
+                    'code' => $ticket->ticket_code,
+                    'holder_name' => $ticket->holder_name,
+                    'type' => $ticket->ticket_type,
+                    'seat' => $ticket->seat_number
+                ],
+                'event' => [
+                    'id' => $ticket->event->id,
+                    'title' => $ticket->event->title,
+                    'venue' => $ticket->event->venue_name
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Check-in error', [
+                'ticket_id' => $ticketId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Check-in failed. Please try again.'
+            ];
+        }
     }
 }

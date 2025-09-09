@@ -203,13 +203,6 @@ class Organizer extends Model
         return $this->hasMany(Payout::class);
     }
 
-    /**
-     * Check if organizer is approved.
-     */
-    public function isApproved(): bool
-    {
-        return $this->approved_at !== null;
-    }
 
     /**
      * Check if organizer has a specific payment method enabled.

@@ -85,28 +85,6 @@ class TicketTypesStep
                             ->default(100),
                     ]),
 
-                Forms\Components\Textarea::make('description')
-                    ->label('Description')
-                    ->placeholder('What does this ticket include?')
-                    ->rows(2)
-                    ->maxLength(500),
-
-                Forms\Components\Grid::make(2)
-                    ->schema([
-                        Forms\Components\DateTimePicker::make('sale_start')
-                            ->label('Sale Start Date')
-                            ->native(false)
-                            ->displayFormat('M d, Y g:i A')
-                            ->default(now())
-                            ->helperText('When tickets go on sale'),
-
-                        Forms\Components\DateTimePicker::make('sale_end')
-                            ->label('Sale End Date')
-                            ->native(false)
-                            ->displayFormat('M d, Y g:i A')
-                            ->helperText('When ticket sales close'),
-                    ]),
-
                 Forms\Components\Grid::make(3)
                     ->schema([
                         Forms\Components\TextInput::make('max_per_order')
@@ -157,11 +135,6 @@ class TicketTypesStep
                     ->label('Show Remaining Tickets')
                     ->default(true)
                     ->helperText('Display available ticket count to buyers'),
-
-                Forms\Components\Toggle::make('ticket_sales_config.enable_waiting_list')
-                    ->label('Enable Waiting List')
-                    ->default(false)
-                    ->helperText('Allow registration when sold out'),
             ])
             ->columns(3);
     }

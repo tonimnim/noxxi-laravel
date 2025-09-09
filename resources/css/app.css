@@ -6,17 +6,18 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
-/* Custom Font */
+/* Custom Font - also defined in welcome.blade.php for faster loading */
 @font-face {
     font-family: 'SilkRemington';
-    src: url('/fonts/SilkRemington-SBold.ttf') format('truetype');
+    src: url('../fonts/SilkRemington-SBold.ttf') format('truetype');
     font-weight: bold;
     font-style: normal;
     font-display: swap;
 }
 
 .font-silk {
-    font-family: 'SilkRemington', serif;
+    font-family: 'SilkRemington', Georgia, serif;
+    font-weight: bold;
 }
 
 @theme {

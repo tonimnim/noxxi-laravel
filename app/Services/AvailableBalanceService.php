@@ -86,8 +86,7 @@ class AvailableBalanceService
      */
     private function calculateTotalCommission(Organizer $organizer): float
     {
-        // Get commission from ticket sales
-        // Priority: platform_fee > commission_rate > organizer commission
+        // Get commission from ticket sales using organizer's commission rate
         $salesCommission = DB::table('transactions')
             ->join('bookings', 'transactions.booking_id', '=', 'bookings.id')
             ->join('events', 'bookings.event_id', '=', 'events.id')
@@ -98,24 +97,11 @@ class AvailableBalanceService
             ->selectRaw('
                 SUM(
                     CASE 
-                        -- Priority 1: Event platform_fee (percentage only)
-                        WHEN events.platform_fee IS NOT NULL AND events.platform_fee > 0
-                        THEN transactions.amount * (events.platform_fee / 100)
-                        
-                        -- Priority 2: Event commission_rate with commission_type
-                        WHEN events.commission_rate IS NOT NULL
-                        THEN 
-                            CASE 
-                                WHEN events.commission_type = \'fixed\' 
-                                THEN events.commission_rate
-                                ELSE transactions.amount * (events.commission_rate / 100)
-                            END
-                        
-                        -- Priority 3: Organizer commission_rate (percentage)
+                        -- Use organizer commission_rate (set by admin)
                         WHEN organizers.commission_rate IS NOT NULL
                         THEN transactions.amount * (organizers.commission_rate / 100)
                         
-                        -- Default 10%
+                        -- Default 10% if not set
                         ELSE transactions.amount * 0.10
                     END
                 ) as total_commission
@@ -184,30 +170,24 @@ class AvailableBalanceService
                 ->where('transactions.organizer_id', $organizer->id)
                 ->where('transactions.status', Transaction::STATUS_COMPLETED)
                 ->where('transactions.type', Transaction::TYPE_TICKET_SALE)
-                ->groupBy('events.id', 'events.title', 'events.commission_rate', 'events.commission_type')
+                ->groupBy('events.id', 'events.title', 'organizers.commission_rate')
                 ->selectRaw('
                     events.id,
                     events.title,
-                    events.commission_rate,
-                    events.commission_type,
+                    organizers.commission_rate,
                     COUNT(transactions.id) as transaction_count,
                     SUM(transactions.net_amount) as total_revenue,
-                    SUM(
-                        CASE 
-                            WHEN events.commission_type = \'fixed\' 
-                            THEN events.commission_rate
-                            ELSE transactions.net_amount * (events.commission_rate / 100)
-                        END
-                    ) as total_commission
+                    SUM(transactions.net_amount * (COALESCE(organizers.commission_rate, 10) / 100)) as total_commission
                 ')
                 ->orderByDesc('total_revenue')
                 ->get()
-                ->map(function ($event) {
+                ->map(function ($event) use ($organizer) {
+                    $commission_rate = $organizer->commission_rate ?? 10;
                     return [
                         'event_id' => $event->id,
                         'title' => $event->title,
-                        'commission_rate' => $event->commission_rate,
-                        'commission_type' => $event->commission_type,
+                        'commission_rate' => $commission_rate,
+                        'commission_type' => 'percentage',
                         'transaction_count' => $event->transaction_count,
                         'total_revenue' => round($event->total_revenue, 2),
                         'total_commission' => round($event->total_commission, 2),

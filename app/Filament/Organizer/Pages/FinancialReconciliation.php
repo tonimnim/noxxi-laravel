@@ -21,6 +21,9 @@ class FinancialReconciliation extends Page
     protected static ?string $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 5;
+    
+    // Hide from navigation until implemented
+    protected static bool $shouldRegisterNavigation = false;
 
     protected static string $view = 'filament.organizer.pages.financial-reconciliation';
 

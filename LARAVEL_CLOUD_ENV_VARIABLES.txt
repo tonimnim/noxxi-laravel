@@ -1,0 +1,132 @@
+# LARAVEL CLOUD ENVIRONMENT VARIABLES
+# Add these to your Laravel Cloud Custom Variables
+# (Excluding injected variables that Laravel Cloud already provides)
+
+# ============================================
+# CRITICAL - MUST BE SET
+# ============================================
+
+# Application Keys (You already have these)
+APP_KEY=base64:vYnSyCF8Km9Gv/8ZviBN6ETkcItKIuxKJdWLn3txe9Y=
+NIGHTWATCH_TOKEN=0LUzVrNj7cnje9QkLxQNlDW8ESWyNDtxRrCDrQQNsH55
+
+# Database Configuration (PostgreSQL)
+DB_CONNECTION=pgsql
+DB_HOST=YOUR_CLOUD_DB_HOST
+DB_PORT=5432
+DB_DATABASE=YOUR_CLOUD_DB_NAME
+DB_USERNAME=YOUR_CLOUD_DB_USERNAME
+DB_PASSWORD=YOUR_CLOUD_DB_PASSWORD
+
+# Redis Configuration
+REDIS_CLIENT=phpredis
+REDIS_HOST=YOUR_CLOUD_REDIS_HOST
+REDIS_PASSWORD=YOUR_CLOUD_REDIS_PASSWORD
+REDIS_PORT=6379
+
+# ============================================
+# EMAIL CONFIGURATION (Resend)
+# ============================================
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=re_jQFG3BXN_Af7dKcT8e7MgSiidREHU9drw
+MAIL_ENCRYPTION=ssl
+MAIL_FROM_ADDRESS=noreply@noxxi.com
+MAIL_FROM_NAME=Noxxi
+
+# ============================================
+# PAYMENT GATEWAY (Paystack)
+# ============================================
+
+# TEST KEYS (Replace with LIVE keys for production)
+PAYSTACK_PUBLIC_KEY=pk_test_05893021e1a275f4be7b8fe25a3b02a963874ff4
+PAYSTACK_SECRET_KEY=sk_test_9369ae3f023c77bcf1646b49e8d81451933f900e
+PAYSTACK_BASE_URL=https://api.paystack.co
+PAYSTACK_CALLBACK_URL=https://noxxi-main-icyxkp.laravel.cloud/api/payments/callback
+PAYSTACK_WEBHOOK_URL=https://noxxi-main-icyxkp.laravel.cloud/api/webhooks/paystack
+
+# ============================================
+# CLOUDINARY (Image Storage)
+# ============================================
+
+CLOUDINARY_URL=cloudinary://642745391242488:C6cEgTMV9kj6saRI48fGTLkzFpE@dpbheqr2n
+
+# ============================================
+# CACHE & QUEUE CONFIGURATION
+# ============================================
+
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+BROADCAST_CONNECTION=log
+
+# ============================================
+# SESSION CONFIGURATION
+# ============================================
+
+SESSION_LIFETIME=43200
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_SECURE_COOKIE=true
+SESSION_SAME_SITE=lax
+
+# ============================================
+# FILESYSTEM
+# ============================================
+
+FILESYSTEM_DISK=local
+
+# ============================================
+# LOCALIZATION
+# ============================================
+
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=en_US
+
+# ============================================
+# OTHER SETTINGS
+# ============================================
+
+BCRYPT_ROUNDS=12
+DEFAULT_CURRENCY=USD
+
+# ============================================
+# HORIZON (Queue Dashboard) - Optional
+# ============================================
+
+HORIZON_PATH=horizon
+HORIZON_DOMAIN=null
+
+# ============================================
+# TELESCOPE (Debug Dashboard) - Optional
+# ============================================
+
+TELESCOPE_ENABLED=false
+TELESCOPE_PATH=telescope
+
+# ============================================
+# NOTES FOR PRODUCTION
+# ============================================
+
+# 1. Replace all TEST keys with PRODUCTION keys:
+#    - PAYSTACK_PUBLIC_KEY (use pk_live_...)
+#    - PAYSTACK_SECRET_KEY (use sk_live_...)
+#
+# 2. Laravel Cloud will automatically provide:
+#    - Database credentials (DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD)
+#    - Redis credentials (REDIS_HOST, REDIS_PASSWORD)
+#    - Replace YOUR_CLOUD_* placeholders with actual values from Laravel Cloud
+#
+# 3. Ensure APP_URL matches your production domain:
+#    - Update PAYSTACK_CALLBACK_URL and PAYSTACK_WEBHOOK_URL accordingly
+#
+# 4. Consider enabling these for production monitoring:
+#    - TELESCOPE_ENABLED=true (for debugging)
+#
+# 5. Security reminders:
+#    - Never commit these values to Git
+#    - Rotate keys regularly
+#    - Use different keys for staging/production

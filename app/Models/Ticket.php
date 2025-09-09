@@ -61,6 +61,8 @@ class Ticket extends Model
         'metadata',
         'cancelled_at',
         'cancelled_reason',
+        'entry_device',
+        'version',
     ];
 
     /**
@@ -187,6 +189,81 @@ class Ticket extends Model
     public function cancel(): void
     {
         $this->update(['status' => 'cancelled']);
+    }
+
+    /**
+     * Scope for upcoming tickets.
+     * Tickets that are valid and within their validity period.
+     */
+    public function scopeUpcoming($query)
+    {
+        return $query->where('tickets.status', 'valid')
+            ->where(function ($q) {
+                // Check ticket validity period
+                $q->where(function ($sub) {
+                    $sub->whereNull('tickets.valid_from')
+                        ->orWhere('tickets.valid_from', '<=', now());
+                })->where(function ($sub) {
+                    $sub->whereNull('tickets.valid_until')
+                        ->orWhere('tickets.valid_until', '>=', now());
+                });
+            });
+    }
+
+    /**
+     * Scope for past tickets.
+     * Tickets that have been used, expired, cancelled, or past their validity period.
+     */
+    public function scopePast($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereIn('tickets.status', ['used', 'expired', 'cancelled'])
+                ->orWhere(function ($sub) {
+                    // Tickets past their validity period
+                    $sub->where('tickets.status', 'valid')
+                        ->whereNotNull('tickets.valid_until')
+                        ->where('tickets.valid_until', '<', now());
+                });
+        });
+    }
+
+    /**
+     * Scope for active tickets.
+     * Tickets that can currently be used (valid and within all time constraints).
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('tickets.status', 'valid')
+            ->where(function ($q) {
+                // Within validity period
+                $q->where(function ($sub) {
+                    $sub->whereNull('tickets.valid_from')
+                        ->orWhere('tickets.valid_from', '<=', now());
+                })->where(function ($sub) {
+                    $sub->whereNull('tickets.valid_until')
+                        ->orWhere('tickets.valid_until', '>=', now());
+                });
+            })
+            ->where(function ($q) {
+                // Handle events with no dates (services) or events that haven't ended
+                $q->whereHas('event', function ($eventQuery) {
+                    $eventQuery->where(function ($sub) {
+                        // Events with no dates (ongoing services)
+                        $sub->whereNull('events.event_date')
+                            // Or events with end_date that hasn't passed
+                            ->orWhere(function ($dateSub) {
+                                $dateSub->whereNotNull('events.end_date')
+                                    ->where('events.end_date', '>=', now());
+                            })
+                            // Or single-day events that haven't passed
+                            ->orWhere(function ($dateSub) {
+                                $dateSub->whereNull('events.end_date')
+                                    ->whereNotNull('events.event_date')
+                                    ->where('events.event_date', '>=', now());
+                            });
+                    });
+                });
+            });
     }
 
     /**

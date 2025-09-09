@@ -162,6 +162,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasOne(Organizer::class, 'user_id');
     }
 
+
     /**
      * Determine if the user can access the Filament panel.
      */

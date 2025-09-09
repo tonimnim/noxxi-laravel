@@ -71,17 +71,13 @@ class AuthController extends Controller
         // Generate OTP for email verification
         $this->authService->generateOTP($user, 'verify');
 
-        // Generate tokens
-        $tokens = $this->authService->generateTokens($user);
-
         // Log user registration activity
         ActivityService::logUser('registered', $user, 'New user registered: '.$user->full_name);
 
         return $this->created([
             'user' => $user,
-            'token' => $tokens['access_token'],
-            'expires_at' => $tokens['expires_at'],
-        ], 'Registration successful. Please verify your email.');
+            'requires_verification' => true,
+        ], 'Registration successful. Please verify your email to continue.');
     }
 
     /**
@@ -156,18 +152,14 @@ class AuthController extends Controller
             // Generate OTP for email verification
             $this->authService->generateOTP($user, 'verify');
 
-            // Generate tokens
-            $tokens = $this->authService->generateTokens($user, 'organizer-app');
-
             // Log organizer registration activity
             ActivityService::logOrganizer('registered', $organizer, 'New organizer registered: '.$organizer->business_name);
 
             return $this->created([
                 'user' => $user,
                 'organizer' => $organizer,
-                'token' => $tokens['access_token'],
-                'expires_at' => $tokens['expires_at'],
-            ], 'Organizer registration successful. Please verify your email.');
+                'requires_verification' => true,
+            ], 'Organizer registration successful. Please verify your email to continue.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -293,7 +285,34 @@ class AuthController extends Controller
             $user->load('organizer');
         }
 
-        return $this->success(['user' => $user]);
+        // Check if user has scanner permissions
+        $scannerPermissions = $user->activeScannerPermissions()
+            ->with(['organizer:id,business_name'])
+            ->get();
+
+        $userData = $user->toArray();
+        
+        // Add scanner permissions to user data
+        if ($scannerPermissions->isNotEmpty()) {
+            $userData['scanner_permissions'] = $scannerPermissions->map(function ($permission) {
+                return [
+                    'id' => $permission->id,
+                    'organizer' => [
+                        'id' => $permission->organizer_id,
+                        'name' => $permission->organizer->business_name,
+                    ],
+                    'can_scan_tickets' => $permission->can_scan_tickets,
+                    'can_validate_entries' => $permission->can_validate_entries,
+                    'event_access' => empty($permission->event_ids) ? 'all' : 'specific',
+                    'event_ids' => $permission->event_ids ?? [],
+                ];
+            });
+            $userData['is_scanner'] = true;
+        } else {
+            $userData['is_scanner'] = false;
+        }
+
+        return $this->success(['user' => $userData]);
     }
 
     /**
@@ -308,18 +327,8 @@ class AuthController extends Controller
             'phone_number' => 'sometimes|string|max:20|unique:users,phone_number,'.$user->id,
             'city' => 'sometimes|string|max:100',
             'country' => 'sometimes|string|max:100',
-            'notification_preferences' => 'sometimes|array',
-            'notification_preferences.email' => 'boolean',
-            'notification_preferences.sms' => 'boolean',
-            'notification_preferences.push' => 'boolean',
+            // Note: notification_preferences removed - now handled in SettingsController
         ]);
-
-        if (isset($validated['notification_preferences'])) {
-            $validated['notification_preferences'] = array_merge(
-                $user->notification_preferences ?? [],
-                $validated['notification_preferences']
-            );
-        }
 
         $user->update($validated);
 
@@ -365,6 +374,7 @@ class AuthController extends Controller
     public function verifyEmail(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
             'code' => 'required|string|size:6',
         ]);
 
@@ -372,7 +382,8 @@ class AuthController extends Controller
             return $this->validationError($validator->errors());
         }
 
-        $user = $request->user();
+        // Find user by email (since they don't have a token yet)
+        $user = User::where('email', $request->email)->first();
 
         // Validate OTP
         if (! $this->authService->validateOTP($user, $request->code, 'verify')) {
@@ -382,12 +393,20 @@ class AuthController extends Controller
         // Mark email as verified
         $this->authService->verifyEmail($user);
 
-        // Generate login token for web redirect
-        $loginToken = Str::random(60);
-        cache()->put('email_verified_login_'.$loginToken, $user->id, 300);
+        // Generate tokens after successful verification
+        $tokens = $this->authService->generateTokens($user);
+
+        // Load organizer if applicable
+        if ($user->role === 'organizer') {
+            $user->load('organizer');
+        }
 
         return $this->success([
-            'redirect' => '/auth/verified-login?token='.$loginToken,
+            'user' => $user,
+            'token' => $tokens['access_token'],
+            'refresh_token' => $tokens['refresh_token'],
+            'expires_at' => $tokens['expires_at'],
+            'message' => 'Email verified successfully',
         ], 'Email verified successfully');
     }
 
@@ -396,12 +415,46 @@ class AuthController extends Controller
      */
     public function resendVerification(Request $request)
     {
-        $user = $request->user();
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        // Check if already verified
+        if ($user->hasVerifiedEmail()) {
+            return $this->error('Email already verified', 400);
+        }
 
         // Generate new OTP
         $this->authService->generateOTP($user, 'verify');
 
         return $this->success(null, 'Verification code sent');
+    }
+    
+    /**
+     * Check email verification status
+     */
+    public function verificationStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        return $this->success([
+            'verified' => $user->hasVerifiedEmail(),
+            'email' => $user->email,
+        ]);
     }
 
     /**

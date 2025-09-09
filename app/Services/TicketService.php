@@ -67,7 +67,7 @@ class TicketService
                         'holder_phone' => $customerDetails['phone'] ?? $booking->customer_phone ?? $booking->user->phone_number,
                         'assigned_to' => $booking->user_id,
                         'status' => 'valid',
-                        'valid_from' => $event->event_date->subHours(4), // Valid 4 hours before event
+                        'valid_from' => now(), // Valid immediately after purchase
                         'valid_until' => $event->end_date ?? $event->event_date->addDay(),
                         'special_requirements' => $customerDetails['special_requirements'] ?? null,
                         'metadata' => [

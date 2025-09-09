@@ -12,9 +12,22 @@
       "WebSearch",
       "mcp__laravel-boost__tinker",
       "mcp__laravel-boost__application-info",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Read(C:\\tools\\php84/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Http\\Controllers\\Api/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\routes/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Filament\\Organizer\\Resources\\EventResource\\Forms/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Filament\\Organizer\\Resources\\EventResource\\Forms/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Filament\\Organizer\\Resources\\EventResource\\Pages/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Filament\\Organizer/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Services/**)",
+      "Read(/C:\\Users\\antho\\noxxi-laravel\\app\\Services/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "laravel-boost"
+  ]
 }

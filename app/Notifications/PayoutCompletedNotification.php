@@ -30,14 +30,7 @@ class PayoutCompletedNotification extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        $channels = ['mail', 'database'];
-
-        // Add SMS if phone number is available
-        if ($notifiable->phone_number) {
-            $channels[] = 'vonage';
-        }
-
-        return $channels;
+        return ['database', 'mail'];
     }
 
     /**

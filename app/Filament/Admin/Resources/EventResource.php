@@ -88,44 +88,6 @@ class EventResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Commission Settings')
-                    ->schema([
-                        Forms\Components\Select::make('commission_type')
-                            ->label('Commission Type')
-                            ->options([
-                                'percentage' => 'Percentage',
-                                'fixed' => 'Fixed Amount',
-                            ])
-                            ->default('percentage')
-                            ->reactive()
-                            ->required(),
-                        Forms\Components\TextInput::make('commission_rate')
-                            ->label(fn ($get) => $get('commission_type') === 'fixed' ? 'Commission Amount' : 'Commission Rate')
-                            ->numeric()
-                            ->suffix(fn ($get) => $get('commission_type') === 'fixed' ? 'KES' : '%')
-                            ->required()
-                            ->minValue(0)
-                            ->maxValue(fn ($get) => $get('commission_type') === 'fixed' ? null : 100)
-                            ->step(0.1)
-                            ->helperText(fn ($get, $record) => $get('organizer_id')
-                                    ? 'Organizer default: '.\App\Models\Organizer::find($get('organizer_id'))?->commission_rate.'%'
-                                    : 'Select organizer to see default rate'
-                            ),
-                        Forms\Components\Toggle::make('featured')
-                            ->label('Featured Event')
-                            ->helperText('Featured events appear at the top of search results')
-                            ->inline(false),
-                        Forms\Components\TextInput::make('featured_priority')
-                            ->label('Featured Priority')
-                            ->numeric()
-                            ->default(0)
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->helperText('Higher numbers appear first (0-100)')
-                            ->visible(fn ($get) => $get('featured')),
-                    ])
-                    ->columns(2)
-                    ->description('Override organizer\'s default commission for this specific event'),
 
                 Forms\Components\Section::make('Venue & Location')
                     ->schema([

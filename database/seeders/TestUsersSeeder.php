@@ -55,10 +55,10 @@ class TestUsersSeeder extends Seeder
                 'business_country' => 'KE',
                 'business_timezone' => 'Africa/Nairobi',
                 'default_currency' => 'KES',
-                'commission_rate' => 10.00,
+                'commission_rate' => null, // Must be set by admin during verification
                 'settlement_period_days' => 7,
                 'is_active' => true,
-                'approved_at' => now(),
+                'is_verified' => true,
             ]);
         }
 

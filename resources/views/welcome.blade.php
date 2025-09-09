@@ -13,23 +13,31 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
     
+    <!-- Preload custom font to prevent FOUC -->
+    <link rel="preload" href="/fonts/SilkRemington-SBold.ttf" as="font" type="font/ttf" crossorigin>
+    
+    <!-- Critical CSS for font loading -->
+    <style>
+        @font-face {
+            font-family: 'SilkRemington';
+            src: url('/fonts/SilkRemington-SBold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+            font-display: swap; /* Use swap for better UX */
+        }
+        
+        .font-silk {
+            font-family: 'SilkRemington', Georgia, serif;
+            font-weight: bold;
+            /* Adjust metrics to match SilkRemington to minimize shift */
+            font-size-adjust: 0.5;
+            letter-spacing: -0.02em;
+        }
+    </style>
+    
     <!-- Styles -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     
-    <style>
-        /* Briski Font */
-        @font-face {
-            font-family: 'Briski';
-            src: url('/BiskiTrial-Regular.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-            font-display: swap;
-        }
-        
-        .logo-briski {
-            font-family: 'Briski', serif;
-        }
-    </style>
 </head>
 <body class="antialiased">
     <div id="app">

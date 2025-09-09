@@ -10,12 +10,6 @@ use Illuminate\Support\Facades\Log;
 
 class TransactionService
 {
-    /**
-     * Gateway fee rates.
-     */
-    const PAYSTACK_MPESA_FEE_RATE = 0.015; // 1.5% for M-Pesa via Paystack
-
-    const PAYSTACK_CARD_FEE_RATE = 0.029; // 2.9% for cards via Paystack
 
     /**
      * Create a ticket sale transaction.
@@ -29,15 +23,13 @@ class TransactionService
         return DB::transaction(function () use ($booking, $paymentGateway, $paymentMethod, $metadata) {
             $amount = $booking->total_amount;
 
-            // Calculate Paystack processing fee (1.5% for M-Pesa, 2.9% for cards)
-            $paystackFee = $this->calculatePaystackFee($amount, $paymentMethod);
-
-            // Get commission rate from event or organizer
+            // Get commission rate from event or organizer (set by admin)
             $commissionRate = $this->getCommissionRate($booking);
             $commission = round($amount * $commissionRate, 2);
 
-            // Net amount = amount - Paystack fee only (commission deducted during payout)
-            $netAmount = $amount - $paystackFee;
+            // Net amount for organizer = amount - commission (we handle commission, not gateway fees)
+            // Gateway fees are between organizer and Paystack
+            $netAmount = $amount - $commission;
 
             // Create main transaction
             $transaction = Transaction::create([
@@ -48,10 +40,10 @@ class TransactionService
                 'amount' => $amount,
                 'currency' => $booking->currency,
                 'commission_amount' => $commission,
-                'payment_processing_fee' => $paystackFee,
-                'paystack_fee' => $paystackFee,
+                'payment_processing_fee' => 0, // Not tracked - between organizer and Paystack
+                'paystack_fee' => 0, // Not tracked - between organizer and Paystack
                 'platform_commission' => $commission,
-                'net_amount' => $netAmount,
+                'net_amount' => $netAmount, // Amount minus our commission
                 'payment_gateway' => $paymentGateway,
                 'payment_method' => $paymentMethod,
                 'payment_reference' => $booking->booking_reference,
@@ -223,46 +215,24 @@ class TransactionService
         });
     }
 
-    /**
-     * Calculate Paystack processing fee based on payment method.
-     */
-    private function calculatePaystackFee(float $amount, string $paymentMethod): float
-    {
-        $rate = match ($paymentMethod) {
-            'mpesa' => self::PAYSTACK_MPESA_FEE_RATE,
-            'card', 'apple' => self::PAYSTACK_CARD_FEE_RATE,
-            default => self::PAYSTACK_MPESA_FEE_RATE,
-        };
-
-        return round($amount * $rate, 2);
-    }
 
     /**
      * Get commission rate from event or organizer settings.
+     * Commission must be set by admin during organizer verification.
      */
     private function getCommissionRate(Booking $booking): float
     {
-        // First check if event has a specific commission rate
-        if ($booking->event && $booking->event->commission_rate !== null) {
-            return $booking->event->commission_rate / 100; // Convert percentage to decimal
-        }
-
-        // Otherwise use organizer's default commission rate
+        // Use organizer's commission rate (set by admin)
+        // This rate applies to ALL events under this organizer
         if ($booking->event && $booking->event->organizer && $booking->event->organizer->commission_rate !== null) {
             return $booking->event->organizer->commission_rate / 100;
         }
 
-        // Default to 10% if nothing is set
-        return 0.10;
+        // Default fallback if no commission rate is set (shouldn't happen in production)
+        // Admin must set commission rate for each organizer
+        return 0.10; // 10% default
     }
 
-    /**
-     * Calculate gateway fees (deprecated - use calculatePaystackFee).
-     */
-    private function calculateGatewayFee(float $amount, string $gateway): float
-    {
-        return $this->calculatePaystackFee($amount, 'mpesa');
-    }
 
     /**
      * Get transaction summary for organizer.

@@ -13,21 +13,28 @@ use Illuminate\Support\Facades\DB;
 
 class AdminStatsOverview extends BaseWidget
 {
-    protected static ?string $pollingInterval = null; // Disable polling for performance
+    protected static ?string $pollingInterval = '10s'; // Poll every 10 seconds for real-time updates
     
     protected static ?int $sort = 1;
     
     protected int | string | array $columnSpan = 'full';
     
     protected static bool $isLazy = false; // Load immediately for important stats
+    
+    // Force 4 columns to display all stats in one horizontal row
+    protected function getColumns(): int
+    {
+        return 4;
+    }
 
     protected function getStats(): array
     {
         return [
             $this->getGrossRevenueStat(),
             $this->getNetRevenueStat(),
+            $this->getPendingCommissionStat(),
             $this->getTotalUsersStat(),
-            $this->getTotalOrganizersStat(),
+            // Removed Total Organizers to fit in one row
         ];
     }
     
@@ -63,8 +70,7 @@ class AdminStatsOverview extends BaseWidget
         });
         
         return Stat::make('Gross Revenue', $this->formatCurrency($grossRevenue))
-            ->description('This month: ' . $this->formatCurrency($monthlyRevenue))
-            ->descriptionIcon('heroicon-m-currency-dollar')
+            ->description(null) // Remove description for compact display
             ->color('success')
             ->chart($trend)
             ->extraAttributes([
@@ -74,57 +80,100 @@ class AdminStatsOverview extends BaseWidget
     
     protected function getNetRevenueStat(): Stat
     {
-        // Calculate net revenue (platform profit after organizer payouts)
-        // Assuming 15% platform fee (85% goes to organizers)
-        $netRevenue = Cache::remember('admin.stats.net_revenue', 300, function () {
-            $grossRevenue = DB::table('transactions')
-                ->where('status', 'success')
-                ->sum('amount');
-            
-            // Platform keeps 15% commission
-            return $grossRevenue * 0.15;
+        // Calculate net revenue from successful payouts only (actual platform profit)
+        $netRevenue = Cache::remember('admin.stats.net_revenue', 30, function () {
+            // Platform keeps commission only after successful payout to organizer
+            // Sum commission from completed/paid payouts only
+            return DB::table('payouts')
+                ->whereIn('status', ['completed', 'paid'])
+                ->sum('commission_amount') ?: 0;
         });
         
-        // Get this month's net revenue
-        $monthlyNetRevenue = Cache::remember('admin.stats.monthly_net_revenue', 300, function () {
-            $monthlyGross = DB::table('transactions')
-                ->where('status', 'success')
-                ->whereMonth('created_at', now()->month)
-                ->whereYear('created_at', now()->year)
-                ->sum('amount');
-            
-            return $monthlyGross * 0.15;
+        // Get this month's net revenue from completed payouts
+        $monthlyNetRevenue = Cache::remember('admin.stats.monthly_net_revenue', 30, function () {
+            return DB::table('payouts')
+                ->whereIn('status', ['completed', 'paid'])
+                ->whereMonth('completed_at', now()->month)
+                ->whereYear('completed_at', now()->year)
+                ->sum('commission_amount') ?: 0;
         });
         
-        // Calculate profit margin
-        $profitMargin = 15; // Platform commission percentage
+        // Calculate average commission rate from actual data
+        $avgCommissionRate = Cache::remember('admin.stats.avg_commission_rate', 60, function () {
+            $result = DB::table('transactions')
+                ->where('status', 'success')
+                ->whereNotNull('platform_commission')
+                ->where('amount', '>', 0)
+                ->selectRaw('AVG(platform_commission * 100.0 / amount) as avg_rate')
+                ->first();
+            
+            return $result && $result->avg_rate ? round($result->avg_rate, 1) : 0;
+        });
+        
+        // If no transactions yet, check organizer rates for display
+        if ($avgCommissionRate == 0) {
+            $defaultRate = DB::table('organizers')
+                ->whereNotNull('commission_rate')
+                ->avg('commission_rate') ?: 10; // Default fallback
+            $avgCommissionRate = round($defaultRate, 1);
+        }
         
         return Stat::make('Net Revenue', $this->formatCurrency($netRevenue))
-            ->description("Platform profit ({$profitMargin}% commission)")
-            ->descriptionIcon('heroicon-m-banknotes')
+            ->description(null) // Remove description for compact display
             ->color('primary')
             ->extraAttributes([
-                'class' => 'ring-1 ring-indigo-200 dark:ring-indigo-800',
+                'class' => 'ring-1 ring-green-200 dark:ring-green-800',
+            ]);
+    }
+    
+    protected function getPendingCommissionStat(): Stat
+    {
+        // Calculate pending commission (earned but not yet paid out)
+        $pendingCommission = Cache::remember('admin.stats.pending_commission', 30, function () {
+            // Total commission from all successful transactions
+            $totalCommission = DB::table('transactions')
+                ->where('status', 'success')
+                ->sum('platform_commission') ?: 0;
+            
+            // Commission already paid out in completed payouts
+            $paidCommission = DB::table('payouts')
+                ->whereIn('status', ['completed', 'paid'])
+                ->sum('commission_amount') ?: 0;
+            
+            // Pending = Total earned - Already paid
+            return max(0, $totalCommission - $paidCommission);
+        });
+        
+        // Count pending payouts
+        $pendingPayouts = Cache::remember('admin.stats.pending_payouts_count', 30, function () {
+            return DB::table('payouts')
+                ->whereIn('status', ['pending', 'approved', 'processing'])
+                ->count();
+        });
+        
+        return Stat::make('Pending Commission', $this->formatCurrency($pendingCommission))
+            ->description(null) // Remove description for compact display
+            ->color('warning')
+            ->extraAttributes([
+                'class' => 'ring-1 ring-yellow-200 dark:ring-yellow-800',
             ]);
     }
     
     protected function getTotalUsersStat(): Stat
     {
-        // Get total users count
-        $totalUsers = Cache::remember('admin.stats.total_users', 600, function () {
-            return DB::table('users')->count();
-        });
+        // Get total users count - NO CACHE for real-time updates
+        $totalUsers = DB::table('users')->count();
         
-        // Get new users this month
-        $newUsersThisMonth = Cache::remember('admin.stats.new_users_month', 600, function () {
+        // Get new users this month - Short cache (30 seconds)
+        $newUsersThisMonth = Cache::remember('admin.stats.new_users_month', 30, function () {
             return DB::table('users')
                 ->whereMonth('created_at', now()->month)
                 ->whereYear('created_at', now()->year)
                 ->count();
         });
         
-        // Get active users (logged in within last 30 days)
-        $activeUsers = Cache::remember('admin.stats.active_users_30d', 600, function () {
+        // Get active users (logged in within last 30 days) - Short cache
+        $activeUsers = Cache::remember('admin.stats.active_users_30d', 30, function () {
             return DB::table('users')
                 ->where('last_active_at', '>=', now()->subDays(30))
                 ->count();
@@ -136,8 +185,7 @@ class AdminStatsOverview extends BaseWidget
             : 0;
         
         return Stat::make('Total Users', number_format($totalUsers))
-            ->description("+{$newUsersThisMonth} this month • {$activityRate}% active")
-            ->descriptionIcon('heroicon-m-user-group')
+            ->description(null) // Remove description for compact display
             ->color('info')
             ->extraAttributes([
                 'class' => 'ring-1 ring-blue-200 dark:ring-blue-800',
@@ -146,20 +194,18 @@ class AdminStatsOverview extends BaseWidget
     
     protected function getTotalOrganizersStat(): Stat
     {
-        // Get total organizers count
-        $totalOrganizers = Cache::remember('admin.stats.total_organizers', 600, function () {
-            return DB::table('organizers')->count();
-        });
+        // Get total organizers count - NO CACHE for real-time updates
+        $totalOrganizers = DB::table('organizers')->count();
         
-        // Get verified organizers
-        $verifiedOrganizers = Cache::remember('admin.stats.verified_organizers', 600, function () {
+        // Get verified organizers - Short cache (30 seconds)
+        $verifiedOrganizers = Cache::remember('admin.stats.verified_organizers', 30, function () {
             return DB::table('organizers')
                 ->where('is_verified', true)
                 ->count();
         });
         
-        // Get active organizers (have events in last 90 days)
-        $activeOrganizers = Cache::remember('admin.stats.active_organizers', 600, function () {
+        // Get active organizers (have events in last 90 days) - Short cache
+        $activeOrganizers = Cache::remember('admin.stats.active_organizers', 30, function () {
             return DB::table('organizers')
                 ->whereExists(function ($query) {
                     $query->select(DB::raw(1))

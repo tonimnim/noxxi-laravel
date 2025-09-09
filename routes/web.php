@@ -11,6 +11,20 @@ Route::get('/', function () {
 
 // Listing (Event) Routes - Vue app handles these
 Route::get('/listings/{identifier}', [App\Http\Controllers\Web\ListingController::class, 'show'])->name('listings.show');
+
+// Category listing pages - Vue app handles these
+Route::get('/events', function () {
+    return view('welcome');
+})->name('events.index');
+Route::get('/sports', function () {
+    return view('welcome');
+})->name('sports.index');
+Route::get('/cinema', function () {
+    return view('welcome');
+})->name('cinema.index');
+Route::get('/experiences', function () {
+    return view('welcome');
+})->name('experiences.index');
 Route::get('/checkout/{eventId}', function ($eventId) {
     return view('checkout', ['eventId' => $eventId]);
 })->name('checkout');
@@ -33,6 +47,11 @@ Route::middleware('auth')->prefix('user')->group(function () {
     Route::get('/tickets/{id}/qr', [\App\Http\Controllers\Web\SecureQrController::class, 'generateQr'])
         ->name('user.ticket.qr')
         ->middleware('throttle:20,1'); // 20 requests per minute
+});
+
+// Refund Requests (for session-based auth)
+Route::middleware('auth')->prefix('refund-requests')->group(function () {
+    Route::post('/', [\App\Http\Controllers\Web\RefundRequestController::class, 'store'])->name('refund-requests.store');
 });
 
 // Vue Example Route
@@ -154,6 +173,25 @@ Route::get('/auth/verified-login', function (Request $request) {
 
     return redirect($redirectPath)->with('success', 'Email verified successfully!');
 })->name('auth.verified.login');
+
+// Legal Pages (with caching)
+Route::middleware('cache.static')->group(function () {
+    Route::get('/terms-of-service', function () {
+        return view('legal.terms');
+    })->name('terms.service');
+
+    Route::get('/privacy-policy', function () {
+        return view('legal.privacy');
+    })->name('privacy.policy');
+
+    Route::get('/refund-policy', function () {
+        return view('legal.refund');
+    })->name('refund.policy');
+
+    Route::get('/cookie-policy', function () {
+        return view('legal.cookies');
+    })->name('cookie.policy');
+});
 
 // Organizer Payout Receipt Routes
 Route::middleware('auth:web')->prefix('organizer')->group(function () {

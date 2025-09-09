@@ -64,7 +64,7 @@ class SecurityHeaders
         // In production, consider using nonces or hashes instead of 'unsafe-inline'
         if (app()->environment('local', 'development')) {
             // More permissive in development for hot reload
-            $policies[] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*";
+            $policies[] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* http://127.0.0.1:5173 ws://127.0.0.1:5173";
         } else {
             // Stricter in production
             $policies[] = "script-src 'self' 'unsafe-inline'";
@@ -72,18 +72,18 @@ class SecurityHeaders
 
         // Styles - allow self and inline styles (needed for Vue components)
         if (app()->environment('local', 'development')) {
-            $policies[] = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net http://localhost:* http://127.0.0.1:*";
+            $policies[] = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net http://localhost:* http://127.0.0.1:* http://127.0.0.1:5173";
         } else {
             $policies[] = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net";
         }
 
-        // Images - allow from self, data URIs, and HTTPS
-        $policies[] = "img-src 'self' data: https:";
+        // Images - allow from self, data URIs, blob URLs (for file uploads), and HTTPS
+        $policies[] = "img-src 'self' data: blob: https:";
 
         // Fonts - allow from self, Google Fonts, and Bunny Fonts
         if (app()->environment('local', 'development')) {
             // Include Vite dev server in development
-            $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net http://localhost:* http://127.0.0.1:*";
+            $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net http://localhost:* http://127.0.0.1:* http://127.0.0.1:5173";
         } else {
             $policies[] = "font-src 'self' https://fonts.gstatic.com https://fonts.bunny.net";
         }
@@ -99,7 +99,7 @@ class SecurityHeaders
 
         // Connect - for API calls (adjust for your API endpoints)
         if (app()->environment('local', 'development')) {
-            $policies[] = "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*";
+            $policies[] = "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* http://127.0.0.1:5173 ws://127.0.0.1:5173";
         } else {
             // Add your production API domains here
             $policies[] = "connect-src 'self' https://api.noxxi.com";

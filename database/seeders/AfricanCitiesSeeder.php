@@ -16,21 +16,24 @@ class AfricanCitiesSeeder extends Seeder
         $cities = $this->getAfricanCities();
 
         foreach ($cities as $cityData) {
-            City::create([
-                'name' => $cityData['name'],
-                'country' => $cityData['country'],
-                'country_code' => $cityData['country_code'],
-                'region' => $cityData['region'],
-                'state_province' => $cityData['state_province'] ?? null,
-                'latitude' => $cityData['latitude'] ?? null,
-                'longitude' => $cityData['longitude'] ?? null,
-                'population' => $cityData['population'] ?? null,
-                'is_capital' => $cityData['is_capital'] ?? false,
-                'is_major' => $cityData['is_major'] ?? true,
-                'timezone' => $cityData['timezone'] ?? null,
-                'slug' => Str::slug($cityData['name'].'-'.$cityData['country_code']),
-                'is_active' => true,
-            ]);
+            $slug = Str::slug($cityData['name'].'-'.$cityData['country_code']);
+            
+            City::updateOrCreate(
+                ['slug' => $slug],
+                [
+                    'name' => $cityData['name'],
+                    'country' => $cityData['country'],
+                    'country_code' => $cityData['country_code'],
+                    'region' => $cityData['region'],
+                    'state_province' => $cityData['state_province'] ?? null,
+                    'latitude' => $cityData['latitude'] ?? null,
+                    'longitude' => $cityData['longitude'] ?? null,
+                    'population' => $cityData['population'] ?? null,
+                    'is_capital' => $cityData['is_capital'] ?? false,
+                    'is_major' => $cityData['is_major'] ?? true,
+                    'timezone' => $cityData['timezone'] ?? null,
+                    'is_active' => true,
+                ]);
         }
     }
 

@@ -132,7 +132,31 @@ class EventCategorySeeder extends Seeder
                 'display_order' => 6,
             ],
 
-            // Cinema has no subcategories
+            // Cinema subcategories
+            [
+                'name' => 'Movies',
+                'slug' => 'movies',
+                'parent_slug' => 'cinema',
+                'display_order' => 1,
+            ],
+            [
+                'name' => 'Premieres',
+                'slug' => 'premieres',
+                'parent_slug' => 'cinema',
+                'display_order' => 2,
+            ],
+            [
+                'name' => 'Film Festivals',
+                'slug' => 'film-festivals',
+                'parent_slug' => 'cinema',
+                'display_order' => 3,
+            ],
+            [
+                'name' => 'Outdoor Cinema',
+                'slug' => 'outdoor-cinema',
+                'parent_slug' => 'cinema',
+                'display_order' => 4,
+            ],
 
             // Experiences subcategories (simplified to 4 only)
             [

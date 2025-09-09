@@ -5,7 +5,7 @@
         <!-- Logo -->
         <div class="mb-8">
           <a href="/" class="flex items-center justify-center">
-            <h1 class="logo-briski text-3xl font-bold text-[#305F64]">NOXXI</h1>
+            <h1 class="font-silk text-3xl font-bold text-[#305F64]">NOXXI</h1>
           </a>
           <h2 class="mt-6 text-2xl font-semibold text-gray-900">Welcome back</h2>
           <p class="mt-2 text-sm text-gray-600">
@@ -188,7 +188,4 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.logo-briski {
-  font-family: 'Briski', serif;
-}
 </style>

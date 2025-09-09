@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Transaction;
 use App\Services\PaystackService;
+use App\Services\TicketService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,10 +15,12 @@ use Illuminate\Support\Facades\Log;
 class PaymentController extends Controller
 {
     protected PaystackService $paystackService;
+    protected TicketService $ticketService;
 
-    public function __construct(PaystackService $paystackService)
+    public function __construct(PaystackService $paystackService, TicketService $ticketService)
     {
         $this->paystackService = $paystackService;
+        $this->ticketService = $ticketService;
     }
 
     /**
@@ -182,8 +185,21 @@ class PaymentController extends Controller
                     'confirmed_at' => now(),
                 ]);
 
-                // Create tickets for the booking
-                $this->createTickets($booking);
+                // Create tickets using the proper TicketService
+                try {
+                    $ticketsResult = $this->ticketService->createTicketsForBooking($booking);
+                    Log::info('Tickets created successfully', [
+                        'booking_id' => $booking->id,
+                        'ticket_count' => count($ticketsResult['tickets'] ?? [])
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to create tickets after payment', [
+                        'booking_id' => $booking->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Don't fail the payment callback - payment was successful
+                    // Tickets can be created manually if needed
+                }
 
                 // Log success
                 Log::info('Payment successful', [
@@ -226,68 +242,6 @@ class PaymentController extends Controller
         }
     }
 
-    /**
-     * Create tickets for confirmed booking
-     */
-    private function createTickets(Booking $booking)
-    {
-        try {
-            $tickets = [];
-            $ticketTypes = $booking->ticket_types ?? [];
-
-            foreach ($ticketTypes as $ticketType) {
-                for ($i = 0; $i < $ticketType['quantity']; $i++) {
-                    $ticketCode = 'TKT'.strtoupper(\Str::random(8));
-                    $tickets[] = [
-                        'id' => \Str::uuid(),
-                        'booking_id' => $booking->id,
-                        'event_id' => $booking->event_id,
-                        'ticket_code' => $ticketCode,
-                        'ticket_hash' => hash('sha256', $ticketCode.$booking->id),
-                        'ticket_type' => $ticketType['name'] ?? 'General',
-                        'price' => $ticketType['price'] ?? 0,
-                        'currency' => $booking->currency,
-                        'status' => 'valid',
-                        'qr_code' => $this->generateQrCode($booking->id, $ticketCode),
-                        'holder_name' => $booking->customer_name,
-                        'holder_email' => $booking->customer_email,
-                        'holder_phone' => $booking->customer_phone,
-                        'assigned_to' => $booking->user_id,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-            }
-
-            if (! empty($tickets)) {
-                \DB::table('tickets')->insert($tickets);
-                Log::info('Tickets created for booking', [
-                    'booking_id' => $booking->id,
-                    'ticket_count' => count($tickets),
-                ]);
-            }
-        } catch (\Exception $e) {
-            Log::error('Failed to create tickets', [
-                'booking_id' => $booking->id,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
-     * Generate QR code for ticket
-     */
-    private function generateQrCode($bookingId, $ticketCode)
-    {
-        // Simple QR code data - you can enhance this
-        return base64_encode(json_encode([
-            'booking_id' => $bookingId,
-            'ticket_code' => $ticketCode,
-            'timestamp' => time(),
-            'hash' => hash('sha256', $bookingId.$ticketCode.config('app.key')),
-        ]));
-    }
 
     /**
      * Get payment channels based on payment method

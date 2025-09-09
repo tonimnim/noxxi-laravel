@@ -56,8 +56,7 @@ class TicketController extends Controller
         // Order by event date for better UX
         $query->join('events', 'tickets.event_id', '=', 'events.id')
             ->orderBy('events.event_date', 'desc')
-            ->orderBy('tickets.created_at', 'desc')
-            ->select('tickets.*'); // Ensure we only select ticket columns
+            ->orderBy('tickets.created_at', 'desc');
 
         $tickets = $query->paginate($request->per_page ?? 20);
 
@@ -77,28 +76,40 @@ class TicketController extends Controller
      */
     public function upcoming(Request $request): JsonResponse
     {
+        // Build query with join first to avoid ambiguity
         $query = Ticket::query()
-            ->select([
-                'tickets.id', 'tickets.booking_id', 'tickets.event_id', 'tickets.ticket_code',
-                'tickets.ticket_type', 'tickets.price', 'tickets.currency', 'tickets.holder_name',
-                'tickets.seat_number', 'tickets.seat_section', 'tickets.status',
-                'tickets.valid_from', 'tickets.valid_until', 'tickets.created_at',
-            ])
             ->join('events', 'tickets.event_id', '=', 'events.id')
+            ->where('tickets.status', 'valid')
             ->where('tickets.assigned_to', Auth::id())
-            ->whereIn('tickets.status', ['valid', 'transferred'])
-            ->where('events.event_date', '>=', now())
-            ->where('events.status', 'published');
-
-        // Eager load relationships with specific columns
-        $query->with([
-            'event:id,title,venue_name,venue_address,city,event_date,end_date,cover_image_url,slug,description',
-            'booking:id,booking_reference',
-        ]);
-
-        // Order by nearest event first
-        $query->orderBy('events.event_date', 'asc')
-            ->orderBy('tickets.created_at', 'desc');
+            ->where('events.status', 'published')
+            // For upcoming tickets, show if event hasn't passed (even if ticket not valid yet)
+            ->where(function ($q) {
+                // Either the ticket validity hasn't expired
+                $q->where(function ($sub) {
+                    $sub->whereNull('tickets.valid_until')
+                        ->orWhere('tickets.valid_until', '>=', now());
+                });
+            })
+            // Check event is upcoming (hasn't ended or started)
+            ->where(function ($q) {
+                // Event hasn't ended
+                $q->where(function ($sub) {
+                    $sub->whereNull('events.end_date')
+                        ->orWhere('events.end_date', '>=', now());
+                })
+                // AND event date hasn't passed (for events without end_date)
+                ->where(function ($sub) {
+                    $sub->whereNotNull('events.end_date')  // If has end_date, use that
+                        ->orWhere('events.event_date', '>=', now());  // Otherwise, event must be in future
+                });
+            })
+            ->with([
+                'event:id,title,venue_name,venue_address,city,event_date,end_date,cover_image_url,slug,description',
+                'booking:id,booking_reference',
+            ])
+            ->orderBy('events.event_date', 'asc')
+            ->orderBy('tickets.created_at', 'desc')
+            ->select('tickets.*');
 
         $tickets = $query->paginate($request->per_page ?? 20);
 
@@ -124,31 +135,42 @@ class TicketController extends Controller
      */
     public function past(Request $request): JsonResponse
     {
+        // Build query with join first to avoid ambiguity
         $query = Ticket::query()
-            ->select([
-                'tickets.id', 'tickets.booking_id', 'tickets.event_id', 'tickets.ticket_code',
-                'tickets.ticket_type', 'tickets.price', 'tickets.currency', 'tickets.holder_name',
-                'tickets.seat_number', 'tickets.seat_section', 'tickets.status',
-                'tickets.used_at', 'tickets.created_at',
-            ])
             ->join('events', 'tickets.event_id', '=', 'events.id')
             ->where('tickets.assigned_to', Auth::id())
-            ->where('events.event_date', '<', now());
-
-        // Include all past ticket statuses for history
-        if (! $request->has('include_all')) {
-            $query->whereIn('tickets.status', ['valid', 'transferred', 'used']);
-        }
-
-        // Eager load relationships
-        $query->with([
-            'event:id,title,venue_name,venue_address,city,event_date,end_date,cover_image_url,slug',
-            'booking:id,booking_reference',
-        ]);
-
-        // Order by most recent event first
-        $query->orderBy('events.event_date', 'desc')
-            ->orderBy('tickets.created_at', 'desc');
+            ->where(function ($q) {
+                // Tickets that are used, expired, or cancelled
+                $q->whereIn('tickets.status', ['used', 'expired', 'cancelled'])
+                    // OR valid tickets past their validity period
+                    ->orWhere(function ($sub) {
+                        $sub->where('tickets.status', 'valid')
+                            ->whereNotNull('tickets.valid_until')
+                            ->where('tickets.valid_until', '<', now());
+                    })
+                    // OR valid tickets from past events
+                    ->orWhere(function ($sub) {
+                        $sub->where('tickets.status', 'valid')
+                            ->where(function ($eventSub) {
+                                $eventSub->where(function ($endSub) {
+                                    // Events with end_date that has passed
+                                    $endSub->whereNotNull('events.end_date')
+                                        ->where('events.end_date', '<', now());
+                                })->orWhere(function ($dateSub) {
+                                    // Events without end_date where event_date has passed
+                                    $dateSub->whereNull('events.end_date')
+                                        ->where('events.event_date', '<', now());
+                                });
+                            });
+                    });
+            })
+            ->with([
+                'event:id,title,venue_name,venue_address,city,event_date,end_date,cover_image_url,slug',
+                'booking:id,booking_reference',
+            ])
+            ->orderBy('events.event_date', 'desc')
+            ->orderBy('tickets.created_at', 'desc')
+            ->select('tickets.*');
 
         $tickets = $query->paginate($request->per_page ?? 20);
 
