@@ -2,9 +2,6 @@
 
 use Knuckles\Scribe\Extracting\Strategies;
 
-use function Knuckles\Scribe\Config\configureStrategy;
-use function Knuckles\Scribe\Config\removeStrategies;
-
 // Only the most common configs are shown. See the https://scribe.knuckles.wtf/laravel/reference/config for all.
 
 return [
@@ -244,10 +241,6 @@ return [
         ],
         'headers' => [
             Strategies\Headers\GetFromRouteRules::class,
-            Strategies\StaticData::withSettings(data: [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ]),
         ],
         'urlParameters' => [
             Strategies\UrlParameters\GetFromLaravelAPI::class,
