@@ -1,13 +1,8 @@
 # LARAVEL CLOUD ENVIRONMENT VARIABLES
-# Add these to your Laravel Cloud Custom Variables
-# (Excluding injected variables that Laravel Cloud already provides)
 
-# ============================================
-# CRITICAL - MUST BE SET
-# ============================================
 
 # Application Keys (You already have these)
-APP_KEY=base64:vYnSyCF8Km9Gv/8ZviBN6ETkcItKIuxKJdWLn3txe9Y=
+APP_KEY=(always provided)
 NIGHTWATCH_TOKEN=0LUzVrNj7cnje9QkLxQNlDW8ESWyNDtxRrCDrQQNsH55
 
 # Database Configuration (PostgreSQL)
