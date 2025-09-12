@@ -1,6 +1,5 @@
 <?php
 
-use Knuckles\Scribe\Config\Defaults;
 use Knuckles\Scribe\Extracting\Strategies;
 
 use function Knuckles\Scribe\Config\configureStrategy;
@@ -241,36 +240,42 @@ return [
     // Use removeStrategies() to remove an included strategy.
     'strategies' => [
         'metadata' => [
-            ...Defaults::METADATA_STRATEGIES,
+            Strategies\Metadata\GetFromDocBlocks::class,
         ],
         'headers' => [
-            ...Defaults::HEADERS_STRATEGIES,
+            Strategies\Headers\GetFromRouteRules::class,
             Strategies\StaticData::withSettings(data: [
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
             ]),
         ],
         'urlParameters' => [
-            ...Defaults::URL_PARAMETERS_STRATEGIES,
+            Strategies\UrlParameters\GetFromLaravelAPI::class,
+            Strategies\UrlParameters\GetFromUrlParamTag::class,
         ],
         'queryParameters' => [
-            ...Defaults::QUERY_PARAMETERS_STRATEGIES,
+            Strategies\QueryParameters\GetFromFormRequest::class,
+            Strategies\QueryParameters\GetFromQueryParamTag::class,
         ],
         'bodyParameters' => [
-            ...Defaults::BODY_PARAMETERS_STRATEGIES,
+            Strategies\BodyParameters\GetFromFormRequest::class,
+            Strategies\BodyParameters\GetFromBodyParamTag::class,
         ],
-        'responses' => configureStrategy(
-            Defaults::RESPONSES_STRATEGIES,
-            Strategies\Responses\ResponseCalls::withSettings(
-                only: ['GET *'],
-                // Recommended: disable debug mode in response calls to avoid error stack traces in responses
-                config: [
+        'responses' => [
+            Strategies\Responses\UseResponseAttributes::class,
+            Strategies\Responses\UseTransformerTags::class,
+            Strategies\Responses\UseApiResourceTags::class,
+            Strategies\Responses\UseResponseTag::class,
+            Strategies\Responses\UseResponseFileTag::class,
+            Strategies\Responses\ResponseCalls::withSettings([
+                'only' => ['GET *'],
+                'config' => [
                     'app.debug' => false,
                 ]
-            )
-        ),
+            ])
+        ],
         'responseFields' => [
-            ...Defaults::RESPONSE_FIELDS_STRATEGIES,
+            Strategies\ResponseFields\GetFromResponseFieldTag::class,
         ],
     ],
 
