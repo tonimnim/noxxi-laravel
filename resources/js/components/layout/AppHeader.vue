@@ -73,10 +73,29 @@
         v-if="showMobileMenu"
         class="lg:hidden absolute top-20 left-0 right-0 bg-white/95 backdrop-blur-lg shadow-lg"
       >
-        <div class="px-6 pt-2 pb-3">
-          <a href="/login" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
-            Sign in
-          </a>
+        <div class="px-6 pt-2 pb-3 space-y-1">
+          <!-- Show Sign in link for unauthenticated users -->
+          <template v-if="!isAuthenticated">
+            <a href="/login" @click="showMobileMenu = false" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+              Sign in
+            </a>
+          </template>
+          
+          <!-- Show user options for authenticated users -->
+          <template v-else>
+            <a href="/account" @click="showMobileMenu = false" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+              </svg>
+              My Account
+            </a>
+            <button 
+              @click="handleMobileLogout"
+              class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            >
+              Logout
+            </button>
+          </template>
         </div>
       </div>
     </transition>
@@ -198,6 +217,12 @@ const handleLogout = async () => {
       window.location.href = '/'
     }
   }
+}
+
+// Handle mobile logout (also closes menu)
+const handleMobileLogout = async () => {
+  showMobileMenu.value = false
+  await handleLogout()
 }
 
 // Scroll to featured section

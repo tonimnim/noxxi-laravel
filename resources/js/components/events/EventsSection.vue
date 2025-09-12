@@ -106,13 +106,66 @@ const loading = ref(false)
 const isVisible = ref(true)
 const searchQuery = ref('')
 
+// Cache configuration
+const CACHE_KEY = 'events_section_data'
+const CACHE_TIME_KEY = 'events_section_time'
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes cache
+
+// Get cached data if valid
+const getCachedData = () => {
+  const cached = sessionStorage.getItem(CACHE_KEY)
+  const cacheTime = sessionStorage.getItem(CACHE_TIME_KEY)
+  const now = Date.now()
+  
+  if (cached && cacheTime && (now - parseInt(cacheTime)) < CACHE_DURATION) {
+    const data = JSON.parse(cached)
+    return data
+  }
+  return null
+}
+
+// Save data to cache
+const saveToCache = (pageNum, data, meta) => {
+  const existing = getCachedData() || { pages: {}, meta: {} }
+  existing.pages[pageNum] = data
+  existing.meta = meta
+  existing.lastPage = pageNum
+  
+  sessionStorage.setItem(CACHE_KEY, JSON.stringify(existing))
+  sessionStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+}
+
 // Fetch events
 const fetchEvents = async (loadingMore = false) => {
   if (loading.value) return
   loading.value = true
 
   try {
-    // Only fetch events from the "events" category
+    // Check cache first
+    const cachedData = getCachedData()
+    if (cachedData && cachedData.pages[page.value]) {
+      const eventsData = cachedData.pages[page.value]
+      const meta = cachedData.meta
+      
+      if (loadingMore) {
+        events.value = [...events.value, ...eventsData]
+      } else {
+        // Restore all cached pages up to current page
+        let allEvents = []
+        for (let i = 1; i <= page.value; i++) {
+          if (cachedData.pages[i]) {
+            allEvents = [...allEvents, ...cachedData.pages[i]]
+          }
+        }
+        events.value = allEvents
+      }
+      
+      hasMore.value = meta.current_page < meta.last_page
+      loading.value = false
+      return
+    }
+    
+    // Not in cache, fetch from API
     const response = await fetch(`/api/events-category?page=${page.value}&per_page=12`)
     const data = await response.json()
     
@@ -120,6 +173,9 @@ const fetchEvents = async (loadingMore = false) => {
       // API returns data.data.events for the events array
       const eventsData = data.data?.events || []
       const meta = data.data?.meta || {}
+      
+      // Save to cache
+      saveToCache(page.value, eventsData, meta)
       
       if (loadingMore) {
         events.value = [...events.value, ...eventsData]
@@ -190,20 +246,34 @@ const handleSearchResults = (event) => {
   
   // If this section should be visible and we have results
   if ((category === 'all' || category === 'events') && results?.events) {
-    // Filter events that belong to Events category
+    // Filter events that belong to Events category or its subcategories
     const eventResults = results.events.filter(event => {
-      // You may want to add category checking here
-      return true // For now, show all events
+      // Check if the event's category is Events or a subcategory of Events
+      const categorySlug = event.category?.slug || ''
+      const parentSlug = event.category?.parent?.slug || ''
+      return parentSlug === 'events' || 
+             categorySlug === 'events' || 
+             ['concerts', 'conferences-workshops', 'festivals', 'theater-plays'].includes(categorySlug)
     })
     
     if (eventResults.length > 0) {
       events.value = eventResults
       isVisible.value = true
+      hasMore.value = false // Disable load more for search results
     } else if (query) {
-      // Hide if no results and there was a search
-      isVisible.value = false
+      // No results found for search
+      events.value = []
+      isVisible.value = true // Still show section but with no results
     }
   }
+}
+
+const handleSearchCleared = () => {
+  // Reset to default content
+  searchQuery.value = ''
+  page.value = 1
+  fetchEvents()
+  isVisible.value = true
 }
 
 const resetToDefault = () => {
@@ -226,11 +296,13 @@ onMounted(() => {
   // Listen for search events
   window.addEventListener('filter-category', handleCategoryFilter)
   window.addEventListener('search-results', handleSearchResults)
+  window.addEventListener('search-cleared', handleSearchCleared)
 })
 
 onUnmounted(() => {
   window.removeEventListener('filter-category', handleCategoryFilter)
   window.removeEventListener('search-results', handleSearchResults)
+  window.removeEventListener('search-cleared', handleSearchCleared)
 })
 </script>
 

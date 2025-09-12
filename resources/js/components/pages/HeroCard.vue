@@ -68,7 +68,7 @@
     </div>
     
     <!-- Mobile Layout (below 768px) -->
-    <div class="md:hidden min-h-screen pt-20 px-4 pb-20">
+    <div class="md:hidden pt-20 px-4 pb-8">
       <div class="bg-[#DCE1E2] rounded-xl shadow-xl p-4">
         <!-- Mobile Images -->
         <div class="h-64 relative rounded-lg overflow-hidden mb-6">
@@ -243,7 +243,7 @@ const handleSellWithUs = () => {
     window.location.href = '/register/organizer'
   } else if (userType.value === 'organizer') {
     // Already an organizer - go to dashboard
-    window.location.href = '/organizer'
+    window.location.href = '/organizer/dashboard'
   }
 }
 

@@ -1,17 +1,9 @@
 <template>
-  <section id="featured-events" v-show="isVisible" class="py-16 px-4 md:px-8 lg:px-12 xl:px-20">
+  <section id="featured-events" v-show="isVisible" class="pt-0 pb-8 md:py-16 px-4 md:px-8 lg:px-12 xl:px-20">
     <div class="max-w-7xl mx-auto">
       <!-- Section Header -->
-      <div class="flex items-center justify-between mb-8">
-        <div>
-          <h2 class="text-3xl md:text-4xl font-bold text-[#223338]">{{ sectionTitle }}</h2>
-        </div>
-        <a href="/explore" class="hidden md:inline-flex items-center gap-2 text-[#305F64] font-medium hover:opacity-80 transition-opacity">
-          View all
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-          </svg>
-        </a>
+      <div class="mb-8">
+        <h2 class="text-3xl md:text-4xl font-bold text-[#223338]">{{ sectionTitle }}</h2>
       </div>
 
       <!-- Events Grid -->
@@ -75,15 +67,6 @@
         </a>
       </div>
 
-      <!-- Mobile View All Button -->
-      <div class="mt-8 text-center md:hidden">
-        <a href="/explore" class="inline-flex items-center gap-2 bg-[#305F64] text-white px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
-          View all events
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-          </svg>
-        </a>
-      </div>
     </div>
   </section>
 </template>
@@ -174,15 +157,56 @@ const handleSearchResults = (event) => {
   // If there's a search query, update featured items with top results
   if (query && results?.events && results.events.length > 0) {
     featuredEvents.value = results.events.slice(0, 8) // Show top 8 results
-  } else if (!query) {
-    // If search is cleared, fetch default featured items
-    fetchFeaturedEvents(currentCategory.value)
+  } else if (query && (!results?.events || results.events.length === 0)) {
+    // No results found
+    featuredEvents.value = []
   }
+}
+
+const handleSearchCleared = () => {
+  // Reset to default featured content
+  fetchFeaturedEvents(currentCategory.value)
+}
+
+// Cache configuration
+const CACHE_KEY_PREFIX = 'featured_events_'
+const CACHE_TIME_PREFIX = 'featured_events_time_'
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes cache
+
+// Get cached data if valid
+const getCachedData = (category) => {
+  const cacheKey = CACHE_KEY_PREFIX + category
+  const cacheTimeKey = CACHE_TIME_PREFIX + category
+  const cached = sessionStorage.getItem(cacheKey)
+  const cacheTime = sessionStorage.getItem(cacheTimeKey)
+  const now = Date.now()
+  
+  if (cached && cacheTime && (now - parseInt(cacheTime)) < CACHE_DURATION) {
+    const data = JSON.parse(cached)
+    return data
+  }
+  return null
+}
+
+// Save data to cache
+const saveToCache = (category, data) => {
+  const cacheKey = CACHE_KEY_PREFIX + category
+  const cacheTimeKey = CACHE_TIME_PREFIX + category
+  
+  sessionStorage.setItem(cacheKey, JSON.stringify(data))
+  sessionStorage.setItem(cacheTimeKey, Date.now().toString())
 }
 
 // Modified fetch to support category filtering
 const fetchFeaturedEvents = async (category = 'all') => {
   try {
+    // Check cache first
+    const cachedData = getCachedData(category)
+    if (cachedData) {
+      featuredEvents.value = cachedData
+      return
+    }
+    
     // Request images sized for featured cards (3:2 aspect ratio)
     const imageParams = new URLSearchParams({
       image_width: 600,
@@ -199,6 +223,8 @@ const fetchFeaturedEvents = async (category = 'all') => {
     const data = await response.json()
     if (data.status === 'success') {
       featuredEvents.value = data.data
+      // Save to cache
+      saveToCache(category, data.data)
     }
   } catch (error) {
     console.error('Error fetching featured events:', error)
@@ -212,11 +238,13 @@ onMounted(() => {
   // Listen for category filter events
   window.addEventListener('filter-category', handleCategoryFilter)
   window.addEventListener('search-results', handleSearchResults)
+  window.addEventListener('search-cleared', handleSearchCleared)
 })
 
 onUnmounted(() => {
   window.removeEventListener('filter-category', handleCategoryFilter)
   window.removeEventListener('search-results', handleSearchResults)
+  window.removeEventListener('search-cleared', handleSearchCleared)
 })
 </script>
 

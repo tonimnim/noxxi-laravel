@@ -18,7 +18,7 @@
           <a 
             v-for="category in categories" 
             :key="category.id"
-            :href="`/explore?category=${category.slug}`"
+            :href="`/${category.slug}`"
             class="flex-none w-[320px] md:w-[380px] lg:w-[420px] group"
             style="scroll-snap-align: start;"
           >

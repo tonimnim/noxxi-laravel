@@ -8,9 +8,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 
 class ProcessTicketCheckIn implements ShouldQueue
 {
@@ -37,6 +37,7 @@ class ProcessTicketCheckIn implements ShouldQueue
     public $timeout = 30;
 
     protected array $checkInData;
+
     protected bool $isBatch;
 
     /**
@@ -54,7 +55,7 @@ class ProcessTicketCheckIn implements ShouldQueue
         if (isset($checkInData['user_id'])) {
             $checkInData['user_id'] = (string) $checkInData['user_id'];
         }
-        
+
         $this->checkInData = $checkInData;
         $this->isBatch = $isBatch;
         $this->onQueue('check-ins'); // Dedicated queue for check-ins
@@ -85,41 +86,41 @@ class ProcessTicketCheckIn implements ShouldQueue
                 return DB::transaction(function () use ($data) {
                     // Ensure ticket_id is a string
                     $ticketId = is_object($data['ticket_id']) ? (string) $data['ticket_id'] : $data['ticket_id'];
-                    
+
                     // Ensure user_id is also a string
                     $userId = is_object($data['user_id']) ? (string) $data['user_id'] : $data['user_id'];
-                    
+
                     Log::info('Processing check-in', [
                         'ticket_id' => $ticketId,
                         'user_id' => $userId,
-                        'gate_id' => $data['gate_id'] ?? null
                     ]);
-                    
+
                     // Lock and get the ticket with version
                     $ticket = Ticket::where('id', $ticketId)
                         ->lockForUpdate()
                         ->first();
 
-                    if (!$ticket) {
+                    if (! $ticket) {
                         Log::warning('Check-in failed: Ticket not found', ['ticket_id' => $ticketId]);
+
                         return false;
                     }
 
                     // Check if already used (idempotent check)
                     if ($ticket->status === 'used') {
-                        // If same user and gate, it's a duplicate scan - that's OK
-                        if ($ticket->used_by === $userId && 
-                            $ticket->entry_gate === ($data['gate_id'] ?? null)) {
+                        // If same user, it's a duplicate scan - that's OK
+                        if ($ticket->used_by === $userId) {
                             return true; // Idempotent success
                         }
-                        
-                        // Different user/gate - conflict
+
+                        // Different user - conflict
                         Log::warning('Check-in conflict: Ticket already used', [
                             'ticket_id' => $ticketId,
                             'original_user' => $ticket->used_by,
                             'new_user' => $userId,
-                            'used_at' => $ticket->used_at
+                            'used_at' => $ticket->used_at,
                         ]);
+
                         return false;
                     }
 
@@ -130,12 +131,11 @@ class ProcessTicketCheckIn implements ShouldQueue
                             'status' => 'used',
                             'used_at' => $data['scanned_at'] ?? now(),
                             'used_by' => $userId,
-                            'entry_gate' => $data['gate_id'] ?? null,
                             'device_fingerprint' => $data['device_id'] ?? null,
-                            'version' => $ticket->version + 1
+                            'version' => $ticket->version + 1,
                         ]);
 
-                    if (!$updated) {
+                    if (! $updated) {
                         // Version mismatch - someone else updated the ticket
                         throw new \Exception('Optimistic lock failed');
                     }
@@ -144,8 +144,7 @@ class ProcessTicketCheckIn implements ShouldQueue
                     $cacheKey = "ticket_checked_{$ticket->id}";
                     Cache::put($cacheKey, [
                         'user_id' => $userId,
-                        'gate_id' => $data['gate_id'],
-                        'checked_at' => now()->toIso8601String()
+                        'checked_at' => now()->toIso8601String(),
                     ], 3600); // Cache for 1 hour
 
                     // Update stats cache
@@ -154,7 +153,6 @@ class ProcessTicketCheckIn implements ShouldQueue
                     Log::info('Ticket checked in successfully', [
                         'ticket_id' => $ticket->id,
                         'code' => $ticket->ticket_code,
-                        'gate' => $data['gate_id']
                     ]);
 
                     return true;
@@ -164,11 +162,11 @@ class ProcessTicketCheckIn implements ShouldQueue
                 if ($attempt >= $maxRetries) {
                     Log::error('Check-in failed after retries', [
                         'ticket_id' => $data['ticket_id'],
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                     throw $e;
                 }
-                
+
                 // Wait before retry (with jitter)
                 usleep(random_int(100000, 500000)); // 100-500ms
             }
@@ -191,9 +189,9 @@ class ProcessTicketCheckIn implements ShouldQueue
                 $success = $this->processSingleCheckIn($checkIn);
                 $results[$checkIn['ticket_id']] = [
                     'success' => $success,
-                    'message' => $success ? 'Checked in' : 'Failed'
+                    'message' => $success ? 'Checked in' : 'Failed',
                 ];
-                
+
                 if ($success) {
                     $successCount++;
                 } else {
@@ -202,7 +200,7 @@ class ProcessTicketCheckIn implements ShouldQueue
             } catch (\Exception $e) {
                 $results[$checkIn['ticket_id']] = [
                     'success' => false,
-                    'message' => $e->getMessage()
+                    'message' => $e->getMessage(),
                 ];
                 $failureCount++;
             }
@@ -211,7 +209,7 @@ class ProcessTicketCheckIn implements ShouldQueue
         Log::info('Batch check-in completed', [
             'total' => count($this->checkInData),
             'success' => $successCount,
-            'failed' => $failureCount
+            'failed' => $failureCount,
         ]);
     }
 
@@ -232,7 +230,7 @@ class ProcessTicketCheckIn implements ShouldQueue
         Log::error('Check-in job failed', [
             'data' => $this->checkInData,
             'error' => $exception->getMessage(),
-            'trace' => $exception->getTraceAsString()
+            'trace' => $exception->getTraceAsString(),
         ]);
 
         // Store failed check-in for manual review if needed
@@ -241,13 +239,12 @@ class ProcessTicketCheckIn implements ShouldQueue
             'ticket_id' => $this->checkInData['ticket_id'] ?? null,
             'event_id' => $this->checkInData['event_id'] ?? null,
             'checked_by' => $this->checkInData['user_id'] ?? null,
-            'gate_id' => $this->checkInData['gate_id'] ?? null,
             'device_id' => $this->checkInData['device_id'] ?? null,
             'scanned_at' => $this->checkInData['scanned_at'] ?? now(),
             'status' => 'failed',
             'error_message' => $exception->getMessage(),
             'created_at' => now(),
-            'updated_at' => now()
+            'updated_at' => now(),
         ]);
     }
 }

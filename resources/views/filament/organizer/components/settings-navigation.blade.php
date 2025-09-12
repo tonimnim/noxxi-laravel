@@ -31,28 +31,47 @@
     ];
 @endphp
 
-<div class="w-64 shrink-0">
-    <div class="mb-6">
+<style>
+@media (max-width: 640px) {
+    .settings-nav {
+        width: 4rem !important;
+    }
+    .settings-nav .nav-label {
+        display: none !important;
+    }
+    .settings-nav .nav-link {
+        justify-content: center !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    .settings-heading {
+        display: none !important;
+    }
+}
+</style>
+
+<div class="settings-nav w-60 shrink-0">
+    <div class="settings-heading mb-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
     </div>
-    <nav class="space-y-2">
+    <nav class="space-y-1">
         @foreach($tabs as $key => $tab)
             @php
                 $isActive = str_contains($currentPath, $key);
             @endphp
             <a 
                 href="{{ $tab['url'] }}"
-                class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                class="nav-link group flex items-center justify-start gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
                        {{ $isActive 
-                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' 
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white' 
+                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm' 
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white' 
                        }}"
             >
                 <x-filament::icon 
                     :icon="$tab['icon']" 
-                    class="h-5 w-5"
+                    class="h-5 w-5 flex-shrink-0"
                 />
-                <span>{{ $tab['label'] }}</span>
+                <span class="nav-label truncate">{{ $tab['label'] }}</span>
             </a>
         @endforeach
     </nav>

@@ -121,18 +121,77 @@ const loading = ref(false)
 const isVisible = ref(true)
 const searchQuery = ref('')
 
+// Cache configuration
+const CACHE_KEY = 'cinema_section_data'
+const CACHE_TIME_KEY = 'cinema_section_time'
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes cache
+
+// Get cached data if valid
+const getCachedData = () => {
+  const cached = sessionStorage.getItem(CACHE_KEY)
+  const cacheTime = sessionStorage.getItem(CACHE_TIME_KEY)
+  const now = Date.now()
+  
+  if (cached && cacheTime && (now - parseInt(cacheTime)) < CACHE_DURATION) {
+    const data = JSON.parse(cached)
+    return data
+  }
+  return null
+}
+
+// Save data to cache
+const saveToCache = (pageNum, data, meta) => {
+  const existing = getCachedData() || { pages: {}, meta: {} }
+  existing.pages[pageNum] = data
+  existing.meta = meta
+  existing.lastPage = pageNum
+  
+  sessionStorage.setItem(CACHE_KEY, JSON.stringify(existing))
+  sessionStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+}
+
 // Fetch movies
 const fetchMovies = async (loadingMore = false) => {
   if (loading.value) return
   loading.value = true
 
   try {
+    // Check cache first
+    const cachedData = getCachedData()
+    if (cachedData && cachedData.pages[page.value]) {
+      const moviesData = cachedData.pages[page.value]
+      const meta = cachedData.meta
+      
+      if (loadingMore) {
+        movies.value = [...movies.value, ...moviesData]
+      } else {
+        // Restore all cached pages up to current page
+        let allMovies = []
+        for (let i = 1; i <= page.value; i++) {
+          if (cachedData.pages[i]) {
+            allMovies = [...allMovies, ...cachedData.pages[i]]
+          }
+        }
+        movies.value = allMovies
+      }
+      
+      hasMore.value = meta.current_page < meta.last_page
+      loading.value = false
+      return
+    }
+    
+    // Not in cache, fetch from API
     const response = await fetch(`/api/cinema?page=${page.value}&per_page=12`)
     const data = await response.json()
     
     if (data.status === 'success') {
       // Extract events array from response
       const moviesData = data.data?.events || []
+      const meta = data.data?.meta || {}
+      
+      // Save to cache
+      saveToCache(page.value, moviesData, meta)
+      
       if (loadingMore) {
         movies.value = [...movies.value, ...moviesData]
       } else {
@@ -140,7 +199,6 @@ const fetchMovies = async (loadingMore = false) => {
       }
       
       // Check if there are more pages
-      const meta = data.data?.meta || {}
       hasMore.value = meta.current_page < meta.last_page
     }
   } catch (error) {
@@ -203,20 +261,32 @@ const handleSearchResults = (event) => {
   
   // If this section should be visible and we have results
   if ((category === 'all' || category === 'cinema') && results?.events) {
-    // Filter cinema/movies from results
+    // Filter events that belong to Cinema category
     const cinemaResults = results.events.filter(event => {
-      // Check if category is Cinema-related
-      return true // For now, show all
+      // Check if the event's category is Cinema
+      const categorySlug = event.category?.slug || ''
+      const parentSlug = event.category?.parent?.slug || ''
+      return categorySlug === 'cinema' || parentSlug === 'cinema'
     })
     
     if (cinemaResults.length > 0) {
       movies.value = cinemaResults
       isVisible.value = true
+      hasMore.value = false // Disable load more for search results
     } else if (query) {
-      // Hide if no results and there was a search
-      isVisible.value = false
+      // No results found for search
+      movies.value = []
+      isVisible.value = true // Still show section but with no results
     }
   }
+}
+
+const handleSearchCleared = () => {
+  // Reset to default content
+  searchQuery.value = ''
+  page.value = 1
+  fetchMovies()
+  isVisible.value = true
 }
 
 // Navigate to event details
@@ -232,11 +302,13 @@ onMounted(() => {
   // Listen for search events
   window.addEventListener('filter-category', handleCategoryFilter)
   window.addEventListener('search-results', handleSearchResults)
+  window.addEventListener('search-cleared', handleSearchCleared)
 })
 
 onUnmounted(() => {
   window.removeEventListener('filter-category', handleCategoryFilter)
   window.removeEventListener('search-results', handleSearchResults)
+  window.removeEventListener('search-cleared', handleSearchCleared)
 })
 </script>
 

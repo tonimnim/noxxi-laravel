@@ -172,6 +172,30 @@
             </div>
           </div>
         </div>
+        
+        <!-- Scan Tickets (Only visible to users with scanner permissions) -->
+        <div v-if="activeTab === 'scan' && canScanTickets">
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            
+            <!-- Launch Scanner Button -->
+            <div class="flex flex-col items-center justify-center py-8">
+              <svg class="w-16 h-16 text-[#FDB813] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+              </svg>
+              
+              <a 
+                href="/scanner/check-in"
+                class="inline-flex items-center px-6 py-3 text-base font-medium text-white bg-[#FDB813] rounded-lg hover:bg-[#FDB813]/90 transition-colors"
+              >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                </svg>
+                Scan Tickets
+              </a>
+            </div>
+            
+          </div>
+        </div>
       </div>
     </div>
     
@@ -199,6 +223,8 @@ const selectedTicket = ref(null)
 const showTicketModal = ref(false)
 const isLoading = ref(true)
 const hasError = ref(false)
+const canScanTickets = ref(false)
+const scannerData = ref(null)
 
 // Tabs configuration
 const tabs = ref([
@@ -211,9 +237,30 @@ const tabs = ref([
 // Load tickets on mount
 onMounted(async () => {
   // Use initial data if available (from server-side rendering)
-  if (window.__INITIAL_DATA__?.tickets) {
-    upcomingTickets.value = window.__INITIAL_DATA__.tickets
-    tabs.value[0].count = upcomingTickets.value.length
+  if (window.__INITIAL_DATA__) {
+    // Load tickets
+    if (window.__INITIAL_DATA__.tickets) {
+      upcomingTickets.value = window.__INITIAL_DATA__.tickets
+      tabs.value[0].count = upcomingTickets.value.length
+    }
+    
+    // Check for scanner permissions
+    if (window.__INITIAL_DATA__.canScanTickets) {
+      canScanTickets.value = true
+      scannerData.value = window.__INITIAL_DATA__.scannerData
+      
+      // Add scan tickets tab after request refund
+      tabs.value.push({
+        id: 'scan',
+        name: 'Scan Tickets',
+        count: scannerData.value?.permissions?.totalEvents || 0,
+        icon: 'qrcode' // Optional icon indicator
+      })
+      
+      // Auto-download manifests for upcoming events (next 48 hours)
+      await autoDownloadManifests()
+    }
+    
     isLoading.value = false
   } else {
     // Fallback to API call if no initial data
@@ -265,6 +312,69 @@ const formatDate = (dateString) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Auto-download manifests for upcoming events
+const autoDownloadManifests = async () => {
+  if (!scannerData.value?.allowedEvents?.length) return
+  
+  try {
+    // Import scanner utilities dynamically (only when needed)
+    const { default: scannerDB } = await import('../../utils/scanner-db')
+    const { default: scannerSync } = await import('../../services/scanner-sync')
+    
+    // Initialize scanner DB
+    await scannerDB.init()
+    
+    // Filter events happening in next 48 hours
+    const upcomingEvents = scannerData.value.allowedEvents.filter(event => {
+      if (!event.date) return false // Services always download
+      const eventDate = new Date(event.date)
+      const hoursUntilEvent = (eventDate - new Date()) / (1000 * 60 * 60)
+      return hoursUntilEvent <= 48 && hoursUntilEvent >= -24 // 48hrs before to 24hrs after
+    })
+    
+    if (upcomingEvents.length === 0) {
+      console.log('No upcoming events to cache')
+      return
+    }
+    
+    console.log(`Auto-downloading manifests for ${upcomingEvents.length} upcoming events`)
+    
+    // Prepare permissions for caching
+    const permissions = {
+      user_id: window.__INITIAL_DATA__.user.id,
+      role: scannerData.value.permissions.isOrganizer ? 'organizer' : 'manager',
+      organizer_id: scannerData.value.organizerIds[0],
+      allowed_events: scannerData.value.allowedEvents.map(e => e.id)
+    }
+    
+    // Download manifests in background (don't block UI)
+    for (const event of upcomingEvents) {
+      try {
+        // Check if already cached and recent
+        const existing = await scannerDB.getEventManifest(event.id)
+        if (existing && existing.cache_age && existing.cache_age.includes('minutes')) {
+          console.log(`Event ${event.title} already cached recently`)
+          continue
+        }
+        
+        // Download manifest
+        const result = await scannerSync.downloadEventManifest(event.id, permissions)
+        if (result.success) {
+          console.log(`Cached ${result.ticket_count} tickets for ${event.title}`)
+        }
+      } catch (error) {
+        console.error(`Failed to cache event ${event.title}:`, error)
+        // Continue with other events even if one fails
+      }
+    }
+    
+    console.log('Manifest pre-loading complete')
+  } catch (error) {
+    console.error('Failed to auto-download manifests:', error)
+    // Non-critical error - scanner will still work with manual download
+  }
 }
 
 const loadPastTickets = async () => {

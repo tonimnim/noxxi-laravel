@@ -1,9 +1,9 @@
 <?php
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Console\Scheduling\Schedule;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '172.16.0.0/12', // Docker network
             '127.0.0.1',
         ]);
-        
+
         // Add SecurityHeaders middleware to all responses
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'organizer' => \App\Http\Middleware\EnsureUserIsOrganizer::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'cache.static' => \App\Http\Middleware\CacheStaticPages::class,
+            'can.scan' => \App\Http\Middleware\CanScanTickets::class,
         ]);
 
         // Exclude webhook endpoints from CSRF protection
@@ -41,7 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/ticket-expiration.log'));
-            
+
         // Optional: Run at specific times for less server load
         // $schedule->command('tickets:expire')
         //     ->dailyAt('02:00')

@@ -23,7 +23,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 
 class Managers extends Page implements HasForms, HasTable
 {
@@ -42,7 +41,7 @@ class Managers extends Page implements HasForms, HasTable
 
     public function getHeading(): string
     {
-        return '';
+        return 'Team Management';
     }
 
     public function getSubheading(): ?string
@@ -57,14 +56,15 @@ class Managers extends Page implements HasForms, HasTable
                 ->label('Add Manager')
                 ->icon('heroicon-o-plus')
                 ->modalHeading('Add New Manager')
-                ->modalDescription('Search for a user by email or phone number to add them as a manager')
+                ->modalDescription('Search for a user by email to add them as a manager')
                 ->modalWidth('lg')
                 ->form([
                     TextInput::make('search')
-                        ->label('Email or Phone Number')
-                        ->placeholder('Enter email or phone number')
+                        ->label('Manager Email')
+                        ->placeholder('Enter manager email address')
+                        ->email()
                         ->required()
-                        ->helperText('Search for an existing user by their email or phone number'),
+                        ->helperText('Enter the email of the person you want to add as a manager'),
 
                     Select::make('event_access')
                         ->label('Event Access')
@@ -94,11 +94,9 @@ class Managers extends Page implements HasForms, HasTable
                         ->required(fn ($get) => $get('event_access') === 'specific'),
                 ])
                 ->action(function (array $data): void {
-                    // Search for user by email or phone
-                    $search = trim($data['search']);
-                    $user = User::where('email', $search)
-                        ->orWhere('phone_number', $search)
-                        ->first();
+                    // Search for user by email
+                    $email = trim($data['search']);
+                    $user = User::where('email', $email)->first();
 
                     if (! $user) {
                         Notification::make()
@@ -279,44 +277,6 @@ class Managers extends Page implements HasForms, HasTable
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('No managers yet')
             ->emptyStateDescription('Add team members who can help scan tickets at your events.')
-            ->emptyStateIcon('heroicon-o-user-group');
-    }
-
-    /**
-     * Get scan activity for display in a separate section
-     */
-    public function getScanActivity(): array
-    {
-        $organizerId = Auth::user()->organizer->id;
-
-        return Cache::remember("scan_activity_{$organizerId}", 60, function () use ($organizerId) {
-            return DB::table('tickets')
-                ->join('users', 'tickets.used_by', '=', 'users.id')
-                ->join('events', 'tickets.event_id', '=', 'events.id')
-                ->join('bookings', 'tickets.booking_id', '=', 'bookings.id')
-                ->join('users as customers', 'bookings.user_id', '=', 'customers.id')
-                ->where('events.organizer_id', $organizerId)
-                ->whereNotNull('tickets.used_at')
-                ->select([
-                    'users.full_name as scanner_name',
-                    'events.title as event_title',
-                    'customers.full_name as customer_name',
-                    'tickets.used_at',
-                    'tickets.ticket_type',
-                ])
-                ->orderBy('tickets.used_at', 'desc')
-                ->limit(50)
-                ->get()
-                ->map(function ($scan) {
-                    return [
-                        'scanner' => $scan->scanner_name,
-                        'event' => $scan->event_title,
-                        'customer' => $scan->customer_name,
-                        'ticket_type' => $scan->ticket_type,
-                        'scanned_at' => \Carbon\Carbon::parse($scan->used_at)->diffForHumans(),
-                    ];
-                })
-                ->toArray();
-        });
+            ->emptyStateIcon('heroicon-o-users');
     }
 }

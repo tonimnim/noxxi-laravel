@@ -71,10 +71,10 @@ class EventSearchController extends Controller
                 });
             })
             ->when($location, function ($q) use ($location) {
-                // Search by location (city or country)
+                // Search by location (city name or country via cities table)
                 $q->where(function ($subQuery) use ($location) {
                     $subQuery->where('city', 'ILIKE', "%{$location}%")
-                        ->orWhereHas('city', function ($cityQuery) use ($location) {
+                        ->orWhereHas('cityRelation', function ($cityQuery) use ($location) {
                             $cityQuery->where('country', 'ILIKE', "%{$location}%");
                         });
                 });

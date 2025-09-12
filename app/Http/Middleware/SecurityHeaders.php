@@ -38,8 +38,12 @@ class SecurityHeaders
         // Referrer Policy - controls how much referrer information should be included
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // Permissions Policy (formerly Feature Policy)
-        $response->headers->set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+        // Permissions Policy - allow camera only on scanner routes
+        if ($request->is('scanner/*')) {
+            $response->headers->set('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self)');
+        } else {
+            $response->headers->set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+        }
 
         // Remove X-Powered-By header if present
         $response->headers->remove('X-Powered-By');

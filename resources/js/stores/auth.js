@@ -71,16 +71,83 @@ export const useAuthStore = defineStore('auth', {
 
         async logout() {
             try {
+                // Try API logout first
                 await axios.post('/api/auth/logout')
             } catch (error) {
-                console.error('Logout error:', error)
+                // Try web logout if API fails
+                try {
+                    await fetch('/auth/web/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        credentials: 'same-origin'
+                    })
+                } catch (webError) {
+                    console.error('Both API and web logout failed:', { apiError: error, webError })
+                }
             } finally {
-                this.user = null
-                this.token = null
-                this.isAuthenticated = false
-                localStorage.removeItem('token')
-                delete axios.defaults.headers.common['Authorization']
-                window.location.href = '/'
+                // Clear all auth state
+                this.clearAuthState()
+                
+                // Force complete page reload to ensure clean state
+                window.location.replace('/')
+            }
+        },
+
+        clearAuthState() {
+            // Reset all state properties to initial values
+            this.user = null
+            this.token = null
+            this.isAuthenticated = false
+            this.loading = false
+            this.errors = null
+            this.initialized = false
+            
+            // Clear localStorage
+            localStorage.removeItem('token')
+            
+            // Clear axios headers
+            delete axios.defaults.headers.common['Authorization']
+            
+            // Clear other user-specific stores
+            this.clearUserStores()
+        },
+
+        clearUserStores() {
+            try {
+                // Import and clear booking store
+                import('./booking').then(({ useBookingStore }) => {
+                    const bookingStore = useBookingStore()
+                    bookingStore.$reset()
+                }).catch(() => {
+                    // Booking store might not be loaded
+                })
+                
+                // Event store doesn't need clearing as it's not user-specific
+                // but we can clear current selections
+                import('./event').then(({ useEventStore }) => {
+                    const eventStore = useEventStore()
+                    // Only clear user-specific filters, keep general data
+                    eventStore.$patch({
+                        filters: {
+                            category: null,
+                            city: null,
+                            dateFrom: null,
+                            dateTo: null,
+                            priceMin: null,
+                            priceMax: null,
+                            search: ''
+                        },
+                        currentEvent: null
+                    })
+                }).catch(() => {
+                    // Event store might not be loaded
+                })
+            } catch (error) {
+                console.warn('Error clearing user stores:', error)
             }
         },
 
@@ -108,6 +175,10 @@ export const useAuthStore = defineStore('auth', {
             this.loading = true
             
             try {
+                // First, ensure we start with a clean slate
+                this.user = null
+                this.isAuthenticated = false
+                
                 // Check if we have a token stored
                 if (this.token) {
                     // Try to fetch user with the stored token
@@ -130,7 +201,15 @@ export const useAuthStore = defineStore('auth', {
                         if (data.authenticated && data.user) {
                             this.user = data.user
                             this.isAuthenticated = true
+                        } else {
+                            // Explicitly set as not authenticated
+                            this.user = null
+                            this.isAuthenticated = false
                         }
+                    } else {
+                        // Response not ok - not authenticated
+                        this.user = null
+                        this.isAuthenticated = false
                     }
                 }
             } catch (error) {
@@ -141,6 +220,8 @@ export const useAuthStore = defineStore('auth', {
                     delete axios.defaults.headers.common['Authorization']
                     this.token = null
                 }
+                // Ensure we're marked as not authenticated
+                this.user = null
                 this.isAuthenticated = false
             } finally {
                 this.loading = false

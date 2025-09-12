@@ -82,17 +82,20 @@ class Profile extends Page implements HasForms
                             ->label('Current Password')
                             ->password()
                             ->currentPassword()
-                            ->revealable(),
+                            ->revealable()
+                            ->autocomplete('current-password'),
                         TextInput::make('password')
                             ->label('New Password')
                             ->password()
                             ->revealable()
                             ->minLength(8)
-                            ->confirmed(),
+                            ->confirmed()
+                            ->autocomplete('new-password'),
                         TextInput::make('password_confirmation')
                             ->label('Confirm Password')
                             ->password()
-                            ->revealable(),
+                            ->revealable()
+                            ->autocomplete('new-password'),
                     ]),
             ])
             ->statePath('data');

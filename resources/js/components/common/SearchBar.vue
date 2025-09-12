@@ -232,19 +232,30 @@ const performSearch = async (params) => {
     const data = await response.json()
     
     if (data.status === 'success') {
+      // The API returns { events: [...] } in data.data
       // Update the sections based on search results
       updateSectionsWithResults(data.data)
+    } else {
+      // If no results or error, clear the results
+      updateSectionsWithResults({ events: [] })
     }
   } catch (error) {
     console.error('Search error:', error)
+    // On error, clear the results
+    updateSectionsWithResults({ events: [] })
   }
 }
 
 const updateSectionsWithResults = (results) => {
+  // Ensure results have the expected structure
+  const structuredResults = {
+    events: results?.events || results || []
+  }
+  
   // Emit event to parent to update sections
   window.dispatchEvent(new CustomEvent('search-results', { 
     detail: { 
-      results,
+      results: structuredResults,
       category: selectedCategory.value,
       query: searchQuery.value,
       location: location.value,
@@ -259,8 +270,20 @@ const debouncedSearch = () => {
   searchTimeout = setTimeout(() => {
     if (searchQuery.value.length >= 3) {
       handleSearch()
+    } else if (searchQuery.value.length === 0 && !location.value && !selectedDate.value) {
+      // If search is cleared and no filters, reset to default
+      clearSearch()
     }
   }, 500) // 500ms debounce
+}
+
+const clearSearch = () => {
+  // Dispatch event to clear search and show default content
+  window.dispatchEvent(new CustomEvent('search-cleared', { 
+    detail: { 
+      category: selectedCategory.value
+    }
+  }))
 }
 
 const selectCategory = (category) => {

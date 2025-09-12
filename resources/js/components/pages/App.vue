@@ -10,6 +10,25 @@
         <!-- Hero Section -->
         <HeroCard />
         
+        <!-- Mobile Category Navigation -->
+        <div class="md:hidden px-4 py-4">
+          <div class="flex gap-2 justify-between">
+            <button
+              v-for="category in mobileCategories"
+              :key="category.value"
+              @click="selectMobileCategory(category.value)"
+              :class="[
+                'px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-1 text-center',
+                selectedMobileCategory === category.value
+                  ? 'bg-[#305F64] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              {{ category.label }}
+            </button>
+          </div>
+        </div>
+        
         <!-- Featured Events Section -->
         <FeaturedEvents />
         
@@ -78,9 +97,19 @@ import ExperiencesListingPage from '../events/ExperiencesListingPage.vue'
 // State
 const searchQuery = ref('')
 const selectedCategory = ref('events') // Events selected by default
+const selectedMobileCategory = ref('all') // Mobile category selection
 const trendingEvents = ref([])
 const currentSlide = ref(0)
 let slideInterval = null
+
+// Mobile categories
+const mobileCategories = [
+  { label: 'All', value: 'all' },
+  { label: 'Events', value: 'events' },
+  { label: 'Sports', value: 'sports' },
+  { label: 'Cinema', value: 'cinema' },
+  { label: 'Experiences', value: 'experiences' }
+]
 
 // Computed property to determine current page based on URL
 const currentPage = computed(() => {
@@ -129,6 +158,27 @@ const startSlideshow = () => {
       currentSlide.value = (currentSlide.value + 1) % trendingEvents.value.length
     }
   }, 5000) // Change slide every 5 seconds
+}
+
+const selectMobileCategory = (category) => {
+  selectedMobileCategory.value = category
+  
+  // Filter sections based on category
+  const sections = {
+    'all': ['featured-events', 'events', 'experiences', 'sports', 'cinema'],
+    'events': ['featured-events', 'events'],
+    'sports': ['sports'],
+    'cinema': ['cinema'],
+    'experiences': ['experiences']
+  }
+  
+  // Emit event to show/hide sections
+  window.dispatchEvent(new CustomEvent('filter-category', { 
+    detail: { 
+      category,
+      visibleSections: sections[category] || []
+    }
+  }))
 }
 
 // Lifecycle

@@ -42,11 +42,37 @@ Route::middleware('auth')->prefix('user')->group(function () {
     Route::get('/tickets/upcoming', [\App\Http\Controllers\Web\UserTicketController::class, 'upcoming']);
     Route::get('/tickets/past', [\App\Http\Controllers\Web\UserTicketController::class, 'past']);
     Route::get('/tickets/{id}', [\App\Http\Controllers\Web\UserTicketController::class, 'show']);
-    
+
     // Secure QR code generation (on-demand, never stored)
     Route::get('/tickets/{id}/qr', [\App\Http\Controllers\Web\SecureQrController::class, 'generateQr'])
         ->name('user.ticket.qr')
         ->middleware('throttle:20,1'); // 20 requests per minute
+});
+
+// Ticket Scanner Routes (Web-based scanning)
+Route::middleware(['auth', 'can.scan'])->prefix('scanner')->group(function () {
+    // Scanner UI page
+    Route::get('/check-in', [\App\Http\Controllers\Web\ScannerController::class, 'index'])
+        ->name('scanner.index');
+
+    // Scanner API endpoints
+    Route::post('/validate', [\App\Http\Controllers\Web\ScannerController::class, 'validateTicket'])
+        ->name('scanner.validate')
+        ->middleware('throttle:60,1'); // 60 validations per minute
+
+    Route::post('/check-in', [\App\Http\Controllers\Web\ScannerController::class, 'checkIn'])
+        ->name('scanner.checkin')
+        ->middleware('throttle:30,1'); // 30 check-ins per minute
+
+    // Get event manifest for offline scanning
+    Route::get('/event/{event_id}/manifest', [\App\Http\Controllers\Web\ScannerController::class, 'getManifest'])
+        ->name('scanner.manifest')
+        ->middleware('throttle:10,1'); // 10 manifest downloads per minute
+
+    // Get check-in statistics
+    Route::get('/event/{event_id}/stats', [\App\Http\Controllers\Web\ScannerController::class, 'getStats'])
+        ->name('scanner.stats')
+        ->middleware('throttle:120,1'); // 120 stats requests per minute
 });
 
 // Refund Requests (for session-based auth)
