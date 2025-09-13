@@ -52,18 +52,18 @@ if (!appElement) {
         const componentName = el.dataset.vueComponent;
         const props = el.dataset.props ? JSON.parse(el.dataset.props) : {};
         
-        const instance = createApp({
-            components: Object.fromEntries(
-                Object.entries(components).map(([path, component]) => {
-                    const name = path.split('/').pop().replace(/\.\w+$/, '');
-                    return [name, component.default];
-                })
-            ),
-            template: `<${componentName} v-bind="props" />`,
-            data() {
-                return { props };
-            }
-        });
+        const Component = components[`./${componentName}.vue`] || 
+                          Object.values(components).find(c => 
+                            c.default.name === componentName || 
+                            c.default.__name === componentName
+                          );
+        
+        if (!Component) {
+            console.error(`Component ${componentName} not found`);
+            return;
+        }
+        
+        const instance = createApp(Component.default, props);
         
             // Add Pinia to standalone instances too
             instance.use(pinia);

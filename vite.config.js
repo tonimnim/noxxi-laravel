@@ -28,9 +28,6 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
-    resolve: {
-        alias: {
-            vue: 'vue/dist/vue.esm-bundler.js',
-        },
-    },
+    // Runtime-only build - no template compiler needed
+    // This makes the bundle smaller and CSP-compliant
 });
