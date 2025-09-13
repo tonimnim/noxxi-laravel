@@ -3,12 +3,13 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { useAuthStore } from './stores/auth';
 import './utils/logout'; // Import logout utility
+import App from './components/pages/App.vue'; // Import the main App component
 
 // Create Pinia instance
 const pinia = createPinia();
 
-// Create main Vue app
-const app = createApp({});
+// Create main Vue app with the App component
+const app = createApp(App);
 
 // Use Pinia
 app.use(pinia);
